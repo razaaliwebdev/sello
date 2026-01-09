@@ -1,27 +1,14 @@
 import express from "express";
 import { auth } from "../middlewares/authMiddleware.js";
-import rateLimit from "express-rate-limit";
 
 const router = express.Router();
-
-// Rate limiting for Google Maps API calls
-const mapsRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: {
-    success: false,
-    message: "Too many map requests, please try again later.",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 /**
  * @route   GET /api/maps/geocode
  * @desc    Proxy for Google Maps Geocoding API
- * @access  Public (with rate limiting)
+ * @access  Public
  */
-router.get("/geocode", mapsRateLimit, async (req, res) => {
+router.get("/geocode", async (req, res) => {
   try {
     const { address } = req.query;
 
@@ -76,9 +63,9 @@ router.get("/geocode", mapsRateLimit, async (req, res) => {
 /**
  * @route   GET /api/maps/places
  * @desc    Proxy for Google Places API
- * @access  Public (with rate limiting)
+ * @access  Public
  */
-router.get("/places", mapsRateLimit, async (req, res) => {
+router.get("/places", async (req, res) => {
   try {
     const { query, location, radius = 5000 } = req.query;
 
@@ -136,9 +123,9 @@ router.get("/places", mapsRateLimit, async (req, res) => {
 /**
  * @route   GET /api/maps/distancematrix
  * @desc    Proxy for Google Distance Matrix API
- * @access  Public (with rate limiting)
+ * @access  Public
  */
-router.get("/distancematrix", mapsRateLimit, async (req, res) => {
+router.get("/distancematrix", async (req, res) => {
   try {
     const { origins, destinations, mode = "driving" } = req.query;
 
@@ -195,9 +182,9 @@ router.get("/distancematrix", mapsRateLimit, async (req, res) => {
 /**
  * @route   GET /api/maps/static-map
  * @desc    Proxy for Google Static Maps API
- * @access  Public (with rate limiting)
+ * @access  Public
  */
-router.get("/static-map", mapsRateLimit, async (req, res) => {
+router.get("/static-map", async (req, res) => {
   try {
     const {
       center,

@@ -15,31 +15,26 @@ import {
 } from "../controllers/authController.js";
 import { upload } from "../middlewares/multer.js";
 import { auth } from "../middlewares/authMiddleware.js";
-import {
-  authLimiter,
-  passwordResetLimiter,
-} from "../middlewares/rateLimiter.js";
 
 const router = express.Router();
 
-// Public Authentication Routes with rate limiting
+// Public Authentication Routes
 // Use fields for dealer registration (avatar + cnicFile)
 router.post(
   "/register",
-  authLimiter,
   upload.fields([
     { name: "avatar", maxCount: 1 },
     { name: "cnicFile", maxCount: 1 },
   ]),
   register
 );
-router.post("/login", authLimiter, login);
-router.post("/refresh-token", authLimiter, refreshToken); // Refresh token endpoint
-router.post("/forgot-password", passwordResetLimiter, forgotPassword);
-router.post("/verify-otp", passwordResetLimiter, verifyOtp);
-router.post("/resend-otp", passwordResetLimiter, resendOtp);
-router.post("/reset-password", passwordResetLimiter, resetPassword);
-router.post("/google", authLimiter, googleLogin);
+router.post("/login", login);
+router.post("/refresh-token", refreshToken); // Refresh token endpoint
+router.post("/forgot-password", forgotPassword);
+router.post("/verify-otp", verifyOtp);
+router.post("/resend-otp", resendOtp);
+router.post("/reset-password", resetPassword);
+router.post("/google", googleLogin);
 router.post("/logout", logout); // Can be used with or without auth
 
 // Protected Routes

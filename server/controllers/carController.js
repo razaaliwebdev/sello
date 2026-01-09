@@ -401,16 +401,7 @@ export const createCar = async (req, res) => {
         return res.status(400).json({
           success: false,
           message:
-            "Please upload at least 1 image. You can upload up to 10 images per post (like OLX, Dubizzle, PakWheels). Supported formats: JPG, PNG, WebP (max 20MB each).",
-        });
-      }
-
-      // Check if too many images were uploaded
-      if (images.length > 10) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Maximum 10 images allowed per post. Please remove some images and try again.",
+            "Please upload at least 1 image. You can upload unlimited images per post. Supported formats: JPG, PNG, WebP (max 20MB each).",
         });
       }
     }
@@ -1121,7 +1112,9 @@ export const getAllCars = async (req, res) => {
           $and: [baseQuery, advancedFilter],
         };
       } catch (queryError) {
-        Logger.warn("Invalid search in getAllCars", { error: queryError.message });
+        Logger.warn("Invalid search in getAllCars", {
+          error: queryError.message,
+        });
       }
     } else if (req.query.condition) {
       // Add condition filter if provided (and no search)

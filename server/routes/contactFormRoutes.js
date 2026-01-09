@@ -1,23 +1,22 @@
-import express from 'express';
+import express from "express";
 import {
-    submitContactForm,
-    getAllContactForms,
-    getContactFormById,
-    convertToChat,
-    updateContactFormStatus,
-    deleteContactForm
-} from '../controllers/contactFormController.js';
-import { auth, authorize } from '../middlewares/authMiddleware.js';
-import { contactFormLimiter } from '../middlewares/rateLimiter.js';
+  submitContactForm,
+  getAllContactForms,
+  getContactFormById,
+  convertToChat,
+  updateContactFormStatus,
+  deleteContactForm,
+} from "../controllers/contactFormController.js";
+import { auth, authorize } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-// Public route - submit contact form with rate limiting
-router.post("/", contactFormLimiter, submitContactForm);
+// Public route - submit contact form
+router.post("/", submitContactForm);
 
 // Admin routes
 router.use(auth);
-router.use(authorize('admin'));
+router.use(authorize("admin"));
 
 router.get("/", getAllContactForms);
 router.get("/:id", getContactFormById);
@@ -26,4 +25,3 @@ router.put("/:id/status", updateContactFormStatus);
 router.delete("/:id", deleteContactForm);
 
 export default router;
-

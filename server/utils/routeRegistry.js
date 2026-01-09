@@ -115,7 +115,6 @@ class RouteRegistry {
       description,
       isRootLevel,
       middleware: [],
-      rateLimit: null,
       cache: null,
     };
 
@@ -131,14 +130,6 @@ class RouteRegistry {
     return this;
   }
 
-  addRateLimit(path, rateLimit) {
-    const route = this.routes.get(path);
-    if (route) {
-      route.rateLimit = rateLimit;
-    }
-    return this;
-  }
-
   addCache(path, cacheOptions) {
     const route = this.routes.get(path);
     if (route) {
@@ -149,11 +140,6 @@ class RouteRegistry {
 
   applyRoutes(app) {
     for (const [path, route] of this.routes) {
-      // Apply rate limiting if configured
-      if (route.rateLimit) {
-        app.use(path, route.rateLimit);
-      }
-
       // Apply custom middleware
       for (const middleware of route.middleware) {
         app.use(path, middleware);
@@ -164,7 +150,7 @@ class RouteRegistry {
         app.use(path, route.cache);
       }
 
-      // Register the route
+      // Register route
       app.use(path, route.router);
     }
 
@@ -179,7 +165,6 @@ class RouteRegistry {
         description: route.description,
         isRootLevel: route.isRootLevel,
         middlewareCount: route.middleware.length,
-        hasRateLimit: !!route.rateLimit,
         hasCache: !!route.cache,
       });
     }

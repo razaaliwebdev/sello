@@ -944,7 +944,7 @@ export const resendOtp = async (req, res) => {
       });
     }
 
-    /* 2. Rate Limiting Check */
+    /* 2. Check for existing user */
     const normalizedEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail });
 
@@ -971,19 +971,6 @@ export const resendOtp = async (req, res) => {
           message: "Account suspended. Please contact support.",
         });
       }
-    }
-
-    // Check if there's a recent OTP request (prevent spam)
-    const otpCooldown = 2 * 60 * 1000; // 2 minutes
-    const timeSinceLastRequest = Date.now() - (user.otpExpiry - 10 * 60 * 1000);
-    if (timeSinceLastRequest < otpCooldown) {
-      const remainingTime = Math.ceil(
-        (otpCooldown - timeSinceLastRequest) / 1000
-      );
-      return res.status(429).json({
-        success: false,
-        message: `Please wait ${remainingTime} seconds before requesting a new OTP.`,
-      });
     }
 
     /* 3. Generate & Save New OTP */

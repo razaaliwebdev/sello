@@ -18,7 +18,6 @@ import {
 } from "../controllers/boostController.js";
 import { upload } from "../middlewares/multer.js";
 import { auth } from "../middlewares/authMiddleware.js";
-import { searchLimiter } from "../middlewares/rateLimiter.js";
 import {
   cache,
   cacheKeys,
@@ -29,12 +28,7 @@ const router = express.Router();
 
 // Public Route - with caching
 router.get("/", cache(300, cacheKeys.carListings), getAllCars); // Cache for 5 minutes
-router.get(
-  "/filter",
-  searchLimiter,
-  cache(300, cacheKeys.carListings),
-  getFilteredCars
-); // This needs to come before /:id - Rate limited to prevent abuse
+router.get("/filter", cache(300, cacheKeys.carListings), getFilteredCars); // This needs to come before /:id
 router.get(
   "/stats/counts-by-make",
   cache(1800, () => "cache:cars:stats:counts-by-make"),

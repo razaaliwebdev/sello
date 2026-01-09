@@ -120,7 +120,7 @@ class SocketManager {
       this.handleLeaveRoom(socket, roomId);
     });
 
-    // Send message with validation and rate limiting
+    // Send message with validation
     socket.on("send-message", (data) => {
       this.handleMessage(socket, data);
     });
@@ -198,7 +198,7 @@ class SocketManager {
     }
   }
 
-  // Handle message sending with validation and rate limiting
+  // Handle message sending with validation
   handleMessage(socket, data) {
     const { roomId, message, type = "text" } = data;
     const clientId = socket.id;
@@ -206,12 +206,6 @@ class SocketManager {
     // Validate message
     if (!this.validateMessage(message, type)) {
       socket.emit("error", { message: "Invalid message format" });
-      return;
-    }
-
-    // Rate limiting check
-    if (this.isRateLimited(clientId)) {
-      socket.emit("error", { message: "Rate limit exceeded" });
       return;
     }
 
@@ -254,33 +248,6 @@ class SocketManager {
       default:
         return false;
     }
-  }
-
-  // Simple rate limiting implementation
-  isRateLimited(clientId) {
-    const client = this.connectedClients.get(clientId);
-    if (!client) return true;
-
-    const now = Date.now();
-    const messageWindow = 60000; // 1 minute
-    const maxMessages = 30; // Max 30 messages per minute
-
-    if (!client.lastMessages) {
-      client.lastMessages = [];
-    }
-
-    // Clean old messages
-    client.lastMessages = client.lastMessages.filter(
-      (timestamp) => now - timestamp < messageWindow
-    );
-
-    // Check rate limit
-    if (client.lastMessages.length >= maxMessages) {
-      return true;
-    }
-
-    client.lastMessages.push(now);
-    return false;
   }
 
   // Handle client disconnection
