@@ -24,7 +24,6 @@ import ActionDropdown from "../../components/admin/ActionDropdown";
 
 const Notifications = () => {
   const [showModal, setShowModal] = useState(false);
-  const [socket, setSocket] = useState(null);
   const [filter, setFilter] = useState("all"); // all, info, success, warning, error, system
   const { data, isLoading, refetch } = useGetAllNotificationsQuery({
     page: 1,
@@ -69,12 +68,10 @@ const Notifications = () => {
       // Socket connected
     });
 
-    newSocket.on("new-notification", (data) => {
-      toast.success("New notification sent to users", { icon: "🔔" });
+    newSocket.on("new-notification", () => {
+      // Notification sent successfully - no toast needed
       refetchRef.current();
     });
-
-    setSocket(newSocket);
 
     return () => {
       if (newSocket) {
@@ -88,6 +85,7 @@ const Notifications = () => {
     message: "",
     type: "system",
     targetAudience: "all",
+    specificUser: "",
     actionUrl: "",
     actionText: "",
     scheduleFor: "",
@@ -109,21 +107,28 @@ const Notifications = () => {
         title: formData.title.trim(),
         message: formData.message.trim(),
         type: formData.type,
-        recipient: null, // Will be null for role-based or all users
-        targetAudience: formData.targetAudience, // Send targetAudience to backend
+        recipient:
+          formData.targetAudience === "specific" && formData.specificUser
+            ? formData.specificUser
+            : null,
+        targetAudience:
+          formData.targetAudience === "specific"
+            ? null
+            : formData.targetAudience,
         actionUrl: formData.actionUrl.trim() || null,
         actionText: formData.actionText.trim() || null,
         expiresAt: formData.scheduleFor ? new Date(formData.scheduleFor) : null,
       };
 
       await createNotification(notificationData).unwrap();
-      toast.success("Notification created and sent successfully!");
+      // Notification created successfully - no toast needed
       setShowModal(false);
       setFormData({
         title: "",
         message: "",
         type: "system",
         targetAudience: "all",
+        specificUser: "",
         actionUrl: "",
         actionText: "",
         scheduleFor: "",
@@ -141,6 +146,7 @@ const Notifications = () => {
       message: "",
       type: "info",
       targetAudience: "all",
+      specificUser: "",
       actionUrl: "",
       actionText: "",
       scheduleFor: "",
@@ -527,8 +533,27 @@ const Notifications = () => {
                       <option value="buyers">Buyers Only</option>
                       <option value="sellers">Sellers Only</option>
                       <option value="dealers">Dealers Only</option>
+                      <option value="specific">Specific User</option>
                     </select>
                   </div>
+
+                  {/* Specific User Selection - Only show when "specific" is selected */}
+                  {formData.targetAudience === "specific" && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        User Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="specificUser"
+                        value={formData.specificUser}
+                        onChange={handleChange}
+                        placeholder="Enter user email address"
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all dark:bg-gray-700 dark:text-white"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Action Link and Text */}

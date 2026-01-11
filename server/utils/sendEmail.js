@@ -1,10 +1,10 @@
 import nodemailer from "nodemailer";
 import Logger from "./logger.js";
+import { EMAIL_CONFIG } from "../config/index.js";
 
 const sendEmail = async (to, subject, html, options = {}) => {
   // Check if email notifications are enabled
-  const emailNotificationsEnabled =
-    process.env.ENABLE_EMAIL_NOTIFICATIONS !== "false";
+  const emailNotificationsEnabled = EMAIL_CONFIG.ENABLED;
 
   if (!emailNotificationsEnabled) {
     Logger.warn("Email notifications disabled via ENABLE_EMAIL_NOTIFICATIONS", {
@@ -56,17 +56,26 @@ const sendEmail = async (to, subject, html, options = {}) => {
 const sendEmailSync = async (to, subject, html) => {
   // Validate email configuration
   const missingVars = [];
-  if (!process.env.SMTP_HOST) missingVars.push("SMTP_HOST");
-  if (!process.env.SMTP_PORT) missingVars.push("SMTP_PORT");
-  if (!process.env.SMTP_MAIL) missingVars.push("SMTP_MAIL");
-  if (!process.env.SMTP_PASSWORD) missingVars.push("SMTP_PASSWORD");
+  if (!EMAIL_CONFIG.HOST) missingVars.push("SMTP_HOST");
+  if (!EMAIL_CONFIG.PORT) missingVars.push("SMTP_PORT");
+  if (!EMAIL_CONFIG.MAIL) missingVars.push("SMTP_MAIL");
+  if (!EMAIL_CONFIG.PASSWORD) missingVars.push("SMTP_PASSWORD");
 
   if (missingVars.length > 0) {
     // Check if we're in production - if so, we MUST have SMTP configured
     const isProduction = process.env.NODE_ENV === "production";
     const isDevelopment = !isProduction;
 
-    // Log the missing configuration
+    // Log the configuration we have for debugging
+    Logger.info("Current EMAIL_CONFIG:", {
+      HOST: EMAIL_CONFIG.HOST,
+      PORT: EMAIL_CONFIG.PORT,
+      MAIL: EMAIL_CONFIG.MAIL,
+      PASSWORD_SET: !!EMAIL_CONFIG.PASSWORD,
+      ENABLED: EMAIL_CONFIG.ENABLED,
+    });
+
+    // Log missing configuration
     Logger.warn("Email configuration missing", { missingVars });
     Logger.warn(
       "Email will NOT be sent. Please configure SMTP in your .env file.",
@@ -91,16 +100,15 @@ const sendEmailSync = async (to, subject, html) => {
   }
 
   // Extract email user - handle both formats: "email@domain.com" or "Name <email@domain.com>"
-  let emailUser =
-    process.env.SMTP_MAIL?.match(/<(.+)>/)?.[1] || process.env.SMTP_MAIL;
+  let emailUser = EMAIL_CONFIG.MAIL?.match(/<(.+)>/)?.[1] || EMAIL_CONFIG.MAIL;
 
   // Determine username format to try
   const emailPrefix = emailUser?.split("@")[0]; // Just the part before @
-  let smtpUsername = process.env.SMTP_USERNAME || emailUser;
+  let smtpUsername = EMAIL_CONFIG.USERNAME || emailUser;
 
   // Warn if SMTP_USERNAME and SMTP_MAIL don't match (common mistake)
   if (
-    process.env.SMTP_USERNAME &&
+    EMAIL_CONFIG.USERNAME &&
     emailUser &&
     process.env.SMTP_USERNAME !== emailUser &&
     process.env.SMTP_USERNAME !== emailPrefix
@@ -127,16 +135,16 @@ const sendEmailSync = async (to, subject, html) => {
 
   // Helper function to create transporter with proper SSL/TLS
   const createTransporter = (username, portOverride = null) => {
-    const port = portOverride || parseInt(process.env.SMTP_PORT) || 587;
+    const port = portOverride || EMAIL_CONFIG.PORT;
     const isSSL = port === 465;
 
     const config = {
-      host: process.env.SMTP_HOST,
+      host: EMAIL_CONFIG.HOST,
       port: port,
       secure: isSSL, // true for 465 (SSL), false for 587 (TLS)
       auth: {
         user: username,
-        pass: process.env.SMTP_PASSWORD,
+        pass: EMAIL_CONFIG.PASSWORD,
       },
       connectionTimeout: 15000, // Increased from 8s to 15s
       greetingTimeout: 15000, // Increased from 8s to 15s
@@ -161,7 +169,7 @@ const sendEmailSync = async (to, subject, html) => {
       port: config.port,
       secure: config.secure,
       username: username,
-      passwordLength: process.env.SMTP_PASSWORD?.length || 0,
+      passwordLength: EMAIL_CONFIG.PASSWORD?.length || 0,
     });
 
     return nodemailer.createTransport(config);

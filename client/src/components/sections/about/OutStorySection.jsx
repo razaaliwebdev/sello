@@ -38,15 +38,15 @@ const OutStorySection = () => {
   }, []);
 
   const stats = [
-    { value: "12M+", label: "Customers", icon: FiUsers },
+    { value: "1M+", label: "Customers", icon: FiUsers },
     { value: "50%", label: "Growth", icon: FiTrendingUp },
-    { value: "£3B+", label: "Cars Bought", icon: FaCar },
+    { value: "1M+", label: "Cars Bought", icon: FaCar },
   ];
 
   const groupStats = [
-    { value: "1.1B+", label: "YouTube Views", icon: FaYoutube },
+    { value: "1.1M+", label: "YouTube Views", icon: FaYoutube },
     { value: "1.2M", label: "Magazine Copies", icon: HiNewspaper },
-    { value: "100M+", label: "Website Visits", icon: FaGlobe },
+    { value: "2M+", label: "Website Visits", icon: FaGlobe },
   ];
 
   return (

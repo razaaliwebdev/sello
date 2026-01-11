@@ -12,13 +12,11 @@ export const formatPrice = (price) => {
   // Check if the conversion was successful
   if (isNaN(numPrice)) return "N/A";
 
-  // Format the number with commas and 2 decimal places for PKR
-  return new Intl.NumberFormat("en-PK", {
-    style: "currency",
-    currency: "PKR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(numPrice);
+  // Format the number with commas
+  const formattedNumber = numPrice.toLocaleString();
+
+  // Return with currency symbol
+  return `${formattedNumber}`;
 };
 
 /**

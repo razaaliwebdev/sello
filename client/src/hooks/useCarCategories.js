@@ -25,6 +25,22 @@ export const useCarCategories = (vehicleType = null) => {
     refetchOnMountOrArgChange: true,
   });
 
+  // Separate query for years - years are common for all vehicle types, so never filter by vehicleType
+  const {
+    data: yearCategories,
+    isLoading: yearLoading,
+    error: yearError,
+  } = useGetAllCategoriesQuery(
+    {
+      type: "car",
+      subType: "year",
+      isActive: "true",
+    },
+    {
+      refetchOnMountOrArgChange: true,
+    }
+  );
+
   const {
     data: allLocationCategories,
     isLoading: locationLoading,
@@ -39,11 +55,22 @@ export const useCarCategories = (vehicleType = null) => {
     }
   );
 
-  const carCategories = Array.isArray(allCarCategories) ? allCarCategories : [];
-  const locationCategories = Array.isArray(allLocationCategories)
-    ? allLocationCategories
-    : [];
-  const isLoading = carLoading || locationLoading;
+  const carCategories = useMemo(
+    () => (Array.isArray(allCarCategories) ? allCarCategories : []),
+    [allCarCategories]
+  );
+  const yearCategoriesArray = useMemo(
+    () => (Array.isArray(yearCategories) ? yearCategories : []),
+    [yearCategories]
+  );
+  const locationCategories = useMemo(
+    () => (Array.isArray(allLocationCategories) ? allLocationCategories : []),
+    [allLocationCategories]
+  );
+  const isLoading = useMemo(
+    () => carLoading || locationLoading || yearLoading,
+    [carLoading, locationLoading, yearLoading]
+  );
 
   const makes = useMemo(() => {
     return carCategories
@@ -69,7 +96,7 @@ export const useCarCategories = (vehicleType = null) => {
   }, [carCategories]);
 
   const years = useMemo(() => {
-    return carCategories
+    return yearCategoriesArray
       .filter((cat) => cat.subType === "year" && cat.isActive)
       .sort((a, b) => {
         // Sort years in descending order (newest first)
@@ -77,7 +104,7 @@ export const useCarCategories = (vehicleType = null) => {
         const yearB = parseInt(b.name) || 0;
         return yearB - yearA;
       });
-  }, [carCategories]);
+  }, [yearCategoriesArray]);
 
   const countries = useMemo(() => {
     return locationCategories

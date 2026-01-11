@@ -11,6 +11,45 @@ const activeUsers = new Map(); // userId -> socketId
 const typingUsers = new Map(); // chatId -> Set of userIds typing
 const liveLocationTrackers = new Map(); // userId -> { carId, location, isActive }
 
+// Cleanup function for socket connections
+const cleanupSocketConnection = (socketToClean) => {
+  try {
+    if (socketToClean.userId) {
+      activeUsers.delete(socketToClean.userId);
+      Logger.info(`Cleaned up connection for user: ${socketToClean.userId}`);
+    }
+
+    // Remove from typing indicators
+    typingUsers.forEach((userSet, chatId) => {
+      userSet.delete(socketToClean.userId);
+      if (userSet.size === 0) {
+        typingUsers.delete(chatId);
+      }
+    });
+
+    // Clean up live location tracking
+    const tracker = liveLocationTrackers.get(socketToClean.userId);
+    if (tracker) {
+      socketToClean
+        .to(`car-location:${tracker.carId}`)
+        .emit("live-location-disabled", {
+          carId: tracker.carId,
+        });
+      liveLocationTrackers.delete(socketToClean.userId);
+    }
+
+    // Disconnect the socket if still connected
+    if (socketToClean.connected) {
+      socketToClean.disconnect(true);
+    }
+  } catch (cleanupError) {
+    Logger.error("Error during socket cleanup", cleanupError, {
+      socketId: socketToClean.id,
+      userId: socketToClean.userId,
+    });
+  }
+};
+
 export const initializeSocket = (server) => {
   // CORS configuration for Socket.io
   const allowedOrigins = process.env.CLIENT_URL
@@ -45,6 +84,31 @@ export const initializeSocket = (server) => {
     upgradeTimeout: 30000, // 30 seconds
     maxHttpBufferSize: 1e6, // 1MB
     compression: true,
+    // Additional stability settings
+    connectTimeout: 45000, // 45 seconds
+    serveClient: false,
+    // Handle connection retries gracefully
+    forceNew: true,
+    // Better error handling
+    rememberUpgrade: false,
+    // Reduce reconnection attempts to prevent spam
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+  });
+
+  // Global error handler for socket.io
+  io.on("error", (err) => {
+    Logger.error("Socket.IO server error", err);
+  });
+
+  // Handle connection errors at the server level
+  io.engine.on("connection_error", (err) => {
+    Logger.error("Socket connection error", err, {
+      code: err.code,
+      message: err.message,
+      context: err.context,
+    });
   });
 
   // Enhanced error handling for connection stability
@@ -59,8 +123,12 @@ export const initializeSocket = (server) => {
       if (!token) {
         Logger.warn("Socket connection attempt without token", {
           socketId: socket.id,
+          userAgent: socket.handshake.headers["user-agent"],
+          ip: socket.handshake.address,
         });
-        return next(new Error("Authentication error: No token provided"));
+        return next(
+          new Error("Authentication required: Please provide a valid token")
+        );
       }
 
       try {
@@ -77,8 +145,23 @@ export const initializeSocket = (server) => {
       } catch (jwtError) {
         Logger.error("JWT verification error in socket", jwtError, {
           socketId: socket.id,
+          errorType: jwtError.name,
         });
-        return next(new Error("Authentication error: Invalid token"));
+
+        // Handle specific JWT errors
+        if (jwtError.name === "TokenExpiredError") {
+          return next(
+            new Error(
+              "Authentication error: Token expired. Please refresh your session."
+            )
+          );
+        } else if (jwtError.name === "JsonWebTokenError") {
+          return next(new Error("Authentication error: Invalid token format."));
+        } else {
+          return next(
+            new Error("Authentication error: Token verification failed.")
+          );
+        }
       }
     } catch (error) {
       Logger.error("Socket auth error", error, { socketId: socket.id });
@@ -93,21 +176,64 @@ export const initializeSocket = (server) => {
       Logger.error("Socket connection error", err, {
         socketId: socket.id,
         userId: socket.userId,
+        errorCode: err.code,
+        errorMessage: err.message,
       });
 
-      // Don't immediately disconnect on first error
+      // Handle different error types appropriately
+      switch (err.code) {
+        case "ECONNRESET":
+          Logger.warn(
+            "Connection reset detected - client disconnected abruptly",
+            {
+              socketId: socket.id,
+              userId: socket.userId,
+            }
+          );
+          // Graceful cleanup for connection reset
+          cleanupSocketConnection(socket);
+          break;
+
+        case "ECONNREFUSED":
+          Logger.warn("Connection refused - network issue", {
+            socketId: socket.id,
+            userId: socket.userId,
+          });
+          cleanupSocketConnection(socket);
+          break;
+
+        case "ETIMEDOUT":
+          Logger.warn("Connection timeout", {
+            socketId: socket.id,
+            userId: socket.userId,
+          });
+          cleanupSocketConnection(socket);
+          break;
+
+        default:
+          Logger.error("Unhandled socket error", err, {
+            socketId: socket.id,
+            userId: socket.userId,
+          });
+          cleanupSocketConnection(socket);
+          break;
+      }
+    });
+
+    // Handle socket-level errors
+    socket.on("error", (err) => {
+      Logger.error("Socket-level error", err, {
+        socketId: socket.id,
+        userId: socket.userId,
+      });
+
+      // Don't immediately disconnect on all errors
       if (err.code === "ECONNRESET" || err.code === "ECONNREFUSED") {
-        Logger.warn("Connection reset detected, attempting graceful handling", {
+        Logger.warn("Socket error detected, cleaning up connection", {
           socketId: socket.id,
           errorCode: err.code,
         });
-
-        // Graceful disconnect after a short delay
-        setTimeout(() => {
-          socket.disconnect(true);
-        }, 1000);
-      } else {
-        socket.disconnect(true);
+        cleanupSocketConnection(socket);
       }
     });
 
@@ -128,6 +254,11 @@ export const initializeSocket = (server) => {
       Logger.info(
         `User ${socket.userId} joined role room: role:${socket.user.role}`
       );
+      console.log(
+        `🔔 User ${socket.userId} with role ${socket.user.role} joined room role:${socket.user.role}`
+      );
+    } else {
+      console.log(`🔔 User ${socket.userId} has no role defined`);
     }
 
     // If admin, join admin room
@@ -145,9 +276,16 @@ export const initializeSocket = (server) => {
     // Join all user's chat rooms (both support and car chats)
     socket.on("join-chats", async () => {
       try {
+        console.log("🔵 join-chats event received for user:", socket.userId);
         const chats = await Chat.find({
-          participants: socket.userId,
+          participants: { $in: [socket.userId] },
           chatType: { $in: ["support", "car"] },
+        });
+
+        console.log("🔵 Found chats for user:", {
+          userId: socket.userId,
+          chatCount: chats.length,
+          chats: chats.map((c) => ({ _id: c._id, chatType: c.chatType })),
         });
 
         chats.forEach((chat) => {
@@ -158,45 +296,7 @@ export const initializeSocket = (server) => {
           chatCount: chats.length,
         });
       } catch (error) {
-        Logger.error("Error joining chats", error, { userId: socket.userId });
-      }
-    });
-
-    // Join a specific chat room
-    socket.on("join-chat", async (chatId) => {
-      try {
-        if (!chatId) {
-          Logger.warn("No chatId provided to join-chat", {
-            userId: socket.userId,
-          });
-          return;
-        }
-
-        const chat = await Chat.findById(chatId);
-        if (!chat) {
-          Logger.warn("Chat not found", { chatId, userId: socket.userId });
-          return;
-        }
-
-        // Check if user is participant (convert to string for comparison)
-        const userIdStr = socket.userId.toString();
-        const isParticipant = chat.participants.some(
-          (p) => p.toString() === userIdStr || p._id?.toString() === userIdStr
-        );
-
-        if (isParticipant) {
-          socket.join(`chat:${chatId}`);
-          socket.emit("joined-chat", chatId);
-          Logger.info(`User ${socket.userId} joined chat ${chatId}`);
-        } else {
-          Logger.warn("User not a participant in chat", {
-            chatId,
-            userId: socket.userId,
-          });
-        }
-      } catch (error) {
-        Logger.error("Error joining chat", error, {
-          chatId,
+        Logger.error("Error joining chats", error, {
           userId: socket.userId,
         });
       }
@@ -250,6 +350,64 @@ export const initializeSocket = (server) => {
       }
     });
 
+    // Join specific chat room
+    socket.on("join-chat", async (chatId) => {
+      try {
+        console.log("🔵 Received join-chat event:", {
+          chatId,
+          userId: socket.userId,
+          socketId: socket.id,
+        });
+
+        if (!chatId) {
+          Logger.warn("No chatId provided to join-chat", {
+            userId: socket.userId,
+          });
+          return;
+        }
+
+        const chat = await Chat.findById(chatId);
+        if (!chat) {
+          Logger.warn("Chat not found", { chatId, userId: socket.userId });
+          return;
+        }
+
+        // Check if user is participant (convert to string for comparison)
+        const userIdStr = socket.userId.toString();
+        const isParticipant = chat.participants.some(
+          (p) => p.toString() === userIdStr
+        );
+
+        console.log("🔵 Chat participant check:", {
+          chatId,
+          userId: socket.userId,
+          isParticipant,
+          chatParticipants: chat.participants.map((p) => p.toString()),
+        });
+
+        if (isParticipant) {
+          socket.join(`chat:${chatId}`);
+          socket.emit("joined-chat", chatId);
+          Logger.info(`User ${socket.userId} joined chat ${chatId}`);
+          console.log("🔵 Successfully joined chat room:", `chat:${chatId}`);
+        } else {
+          Logger.warn("User not a participant in chat", {
+            chatId,
+            userId: socket.userId,
+          });
+          console.log("🔴 User not a participant in chat:", {
+            chatId,
+            userId: socket.userId,
+          });
+        }
+      } catch (error) {
+        Logger.error("Error joining chat", error, {
+          chatId,
+          userId: socket.userId,
+        });
+      }
+    });
+
     // Handle typing indicator
     socket.on("typing", async ({ chatId, isAdmin = false }) => {
       try {
@@ -276,7 +434,7 @@ export const initializeSocket = (server) => {
         // Regular user typing - check if participant
         const userIdStr = socket.userId.toString();
         const isParticipant = chat.participants.some(
-          (p) => p.toString() === userIdStr || p._id?.toString() === userIdStr
+          (p) => p.toString() === userIdStr
         );
 
         if (!isParticipant) {
@@ -339,6 +497,14 @@ export const initializeSocket = (server) => {
       "send-message",
       async ({ chatId, message, messageType = "text", attachments = [] }) => {
         try {
+          console.log("🔵 Received send-message event:", {
+            chatId,
+            message,
+            messageType,
+            userId: socket.userId,
+            socketId: socket.id,
+          });
+
           if (!chatId || !message) {
             socket.emit("error", {
               message: "Chat ID and message are required",
@@ -355,7 +521,7 @@ export const initializeSocket = (server) => {
           // Check if user is participant (convert to string for comparison)
           const userIdStr = socket.userId.toString();
           const isParticipant = chat.participants.some(
-            (p) => p.toString() === userIdStr || p._id?.toString() === userIdStr
+            (p) => p.toString() === userIdStr
           );
 
           if (!isParticipant) {
@@ -393,6 +559,14 @@ export const initializeSocket = (server) => {
           });
 
           await chat.save();
+
+          console.log("🔵 Emitting new-message to room:", `chat:${chatId}`);
+          console.log("🔵 New message details:", {
+            messageId: newMessage._id,
+            chatId,
+            senderId: socket.userId,
+            message: newMessage.message,
+          });
 
           // Emit to all participants in the chat room
           io.to(`chat:${chatId}`).emit("new-message", {
@@ -497,43 +671,6 @@ export const initializeSocket = (server) => {
                   carId: car?._id || null,
                   actionUrl,
                 });
-
-                // Optional: email notification for chat messages
-                if (emailEnabled && recipientUser.email) {
-                  const emailSubject = `${siteName} – ${title}`;
-                  const emailActionHref = `${clientUrl}${actionUrl}`;
-
-                  const emailHtml = `
-                                    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-                                        <h2 style="color:#111827;margin-bottom:8px;">${siteName} – ${title}</h2>
-                                        <p style="margin:0 0 12px 0;">Hi ${
-                                          recipientUser.name || ""
-                                        },</p>
-                                        <p style="margin:0 0 16px 0;">${messageText}</p>
-                                        <p style="margin:0 0 16px 0;">
-                                            <a href="${emailActionHref}" style="display:inline-block;padding:10px 18px;background:#F97316;color:#ffffff;text-decoration:none;border-radius:999px;font-size:14px;">
-                                                View chat
-                                            </a>
-                                        </p>
-                                        <p style="font-size:12px;color:#6B7280;margin-top:24px;">
-                                            You are receiving this because you have an account on ${siteName}.
-                                        </p>
-                                    </div>
-                                `;
-
-                  try {
-                    await sendEmail(
-                      recipientUser.email,
-                      emailSubject,
-                      emailHtml
-                    );
-                  } catch (emailError) {
-                    console.error(
-                      `Chat notification email error for user ${recipientUser._id}:`,
-                      emailError.message
-                    );
-                  }
-                }
               }
             }
           } catch (notifError) {
@@ -542,7 +679,7 @@ export const initializeSocket = (server) => {
 
           // Try chatbot response only for support chats (not car chats)
           // Don't trigger chatbot if admin is responding
-          /* Chatbot disabled per user request
+          // Chatbot disabled per user request
           if (socket.user.role !== "admin" && chat.chatType === "support") {
             setTimeout(async () => {
               try {
@@ -576,7 +713,7 @@ export const initializeSocket = (server) => {
                 console.error("Chatbot error:", error);
               }
             }, 1000); // 1 second delay for bot response
-          } else */ if (socket.user.role === "admin") {
+          } else if (socket.user.role === "admin") {
             // Admin message - update unread count for user
             chat.participants.forEach((participantId) => {
               if (participantId.toString() !== socket.userId) {
@@ -761,8 +898,14 @@ export const initializeSocket = (server) => {
     // Disable live location
     socket.on("disable-live-location", ({ carId }) => {
       try {
+        if (!carId) {
+          socket.emit("error", { message: "Car ID is required" });
+          return;
+        }
+
+        // Check if user is the one who enabled live location
         const tracker = liveLocationTrackers.get(socket.userId);
-        if (tracker && tracker.carId === carId) {
+        if (tracker && tracker.carId === carId && tracker.isActive) {
           tracker.isActive = false;
           liveLocationTrackers.delete(socket.userId);
 
@@ -812,26 +955,9 @@ export const initializeSocket = (server) => {
     });
 
     // Handle disconnect
-    socket.on("disconnect", () => {
-      Logger.info(`User disconnected: ${socket.userId}`);
-      activeUsers.delete(socket.userId);
-
-      // Remove from typing indicators
-      typingUsers.forEach((userSet, chatId) => {
-        userSet.delete(socket.userId);
-        if (userSet.size === 0) {
-          typingUsers.delete(chatId);
-        }
-      });
-
-      // Clean up live location tracking
-      const tracker = liveLocationTrackers.get(socket.userId);
-      if (tracker) {
-        io.to(`car-location:${tracker.carId}`).emit("live-location-disabled", {
-          carId: tracker.carId,
-        });
-        liveLocationTrackers.delete(socket.userId);
-      }
+    socket.on("disconnect", (reason) => {
+      Logger.info(`User disconnected: ${socket.userId}, reason: ${reason}`);
+      cleanupSocketConnection(socket);
     });
   });
 

@@ -1,11 +1,28 @@
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+import { fileURLToPath } from "url";
+
+// Get the directory name of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from the server directory (not config directory)
+const envPath = path.join(__dirname, "..", ".env");
+dotenv.config({ path: envPath });
+
+// Debug: Check if .env was loaded
+console.log("🔧 Environment loaded from:", envPath);
+console.log(
+  "🔧 ENABLE_EMAIL_NOTIFICATIONS:",
+  process.env.ENABLE_EMAIL_NOTIFICATIONS
+);
+console.log("🔧 NODE_ENV:", process.env.NODE_ENV);
 
 /**
  * Database Configuration
  */
 export const DB_CONFIG = {
-  MONGO_URI: process.env.MONGO_URI || "mongodb://127.0.0.1:27017/sello-db",
+  MONGO_URI: process.env.MONGO_URI || "mongodb://127.0.0.1:27017/sell-db",
   // Redis configuration (optional)
   REDIS_URL: process.env.REDIS_URL,
   REDIS_HOST: process.env.REDIS_HOST || "localhost",

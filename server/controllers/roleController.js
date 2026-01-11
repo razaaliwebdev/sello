@@ -281,6 +281,18 @@ export const getAllRoles = async (req, res) => {
     // Get only active roles (exclude deleted ones)
     const roles = await Role.find({ isActive: true }).sort({ name: 1 });
 
+    // Debug logging
+    Logger.info("Get All Roles - Debug", {
+      totalRolesFound: roles.length,
+      roles: roles.map((r) => ({
+        id: r._id,
+        name: r.name,
+        displayName: r.displayName,
+        isActive: r.isActive,
+        isPreset: r.isPreset,
+      })),
+    });
+
     return res.status(200).json({
       success: true,
       message: "Roles retrieved successfully.",
@@ -366,8 +378,8 @@ export const createRole = async (req, res) => {
       });
     }
 
-    // Check if role name already exists
-    const existingRole = await Role.findOne({ name });
+    // Check if role name already exists (only check active roles)
+    const existingRole = await Role.findOne({ name, isActive: true });
     if (existingRole) {
       return res.status(400).json({
         success: false,
@@ -589,14 +601,49 @@ export const deleteRole = async (req, res) => {
       // Continue with deletion even if user check fails
     }
 
-    // Soft delete - mark as inactive
-    role.isActive = false;
-    await role.save();
+    // Check if there's already an inactive role with the same name
+    const existingInactiveRole = await Role.findOne({
+      name: role.name,
+      isActive: false,
+      _id: { $ne: roleId }, // Exclude current role
+    });
 
-    Logger.info("Delete role - Role marked as inactive", {
+    if (existingInactiveRole) {
+      // If there's already an inactive role with same name, hard delete to avoid index conflict
+      Logger.info(
+        "Delete role - Hard deleting due to name conflict with inactive role",
+        {
+          roleId: role._id,
+          roleName: role.name,
+          conflictingInactiveRoleId: existingInactiveRole._id,
+        }
+      );
+
+      await Role.deleteOne({ _id: roleId });
+    } else {
+      // Soft delete - mark as inactive (safe when no name conflicts)
+      await Role.findOneAndUpdate(
+        { _id: roleId },
+        { isActive: false },
+        { new: true }
+      );
+    }
+
+    Logger.info("Delete role - Role deletion completed", {
       roleId: role._id,
       roleName: role.name,
-      isActive: role.isActive,
+      originalIsActive: role.isActive,
+      isPreset: role.isPreset,
+      deletionType: existingInactiveRole ? "hard_delete" : "soft_delete",
+    });
+
+    // Verify the role was actually updated/deleted
+    const updatedRole = await Role.findById(roleId);
+    Logger.info("Delete role - Verification", {
+      roleId: roleId,
+      roleExists: !!updatedRole,
+      updatedIsActive: updatedRole?.isActive,
+      updatedIsPreset: updatedRole?.isPreset,
     });
 
     // Create audit log asynchronously (non-blocking to prevent timeouts)

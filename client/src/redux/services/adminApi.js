@@ -862,7 +862,7 @@ export const adminApi = createApi({
       query: () => "/roles",
       providesTags: ["Roles"],
       transformResponse: (response) => response?.data || response,
-      keepUnusedDataFor: 300, // Cache roles for 5 minutes (static data)
+      keepUnusedDataFor: 60, // Cache roles for 1 minute (reduced from 5 minutes)
     }),
     getRoleById: builder.query({
       query: (roleId) => `/roles/${roleId}`,
@@ -891,6 +891,16 @@ export const adminApi = createApi({
         method: "DELETE",
       }),
       invalidatesTags: ["Roles"],
+      // Force refetch after deletion
+      onQueryStarted: async (arg, { dispatch, queryFulfilled }) => {
+        try {
+          await queryFulfilled;
+          // Force immediate refetch
+          dispatch(adminApi.util.invalidateTags(["Roles"]));
+        } catch (error) {
+          console.error("Delete role error:", error);
+        }
+      },
     }),
     getPermissionMatrix: builder.query({
       query: () => "/roles/matrix",

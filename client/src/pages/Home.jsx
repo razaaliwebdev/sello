@@ -13,6 +13,7 @@ import BannerCarousal from "../components/utils/BannerCarousal";
 import SEO from "../components/common/SEO";
 import StructuredData from "../components/common/StructuredData";
 import Video from "../components/sections/home/Video";
+import MainHeading from "../components/sections/home/MainHeading";
 
 const Home = () => {
   const location = useLocation();
@@ -33,6 +34,7 @@ const Home = () => {
       <StructuredData.OrganizationSchema />
       <StructuredData.WebSiteSchema />
       <div className="">
+        <MainHeading />
         <Hero />
         <BrandsSection />
         <Video />

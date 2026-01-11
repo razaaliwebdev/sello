@@ -1,7 +1,14 @@
 import React from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { images } from "../../assets/assets";
-import { FiArrowLeft, FiSearch, FiUser, FiMail, FiPhone, FiMessageCircle } from "react-icons/fi";
+import {
+  FiArrowLeft,
+  FiSearch,
+  FiUser,
+  FiMail,
+  FiPhone,
+  FiMessageCircle,
+} from "react-icons/fi";
 import { useGetMeQuery } from "../../redux/services/api";
 
 const HelpArticlePage = ({ title, content, category }) => {
@@ -68,14 +75,12 @@ const HelpArticlePage = ({ title, content, category }) => {
                 {category}
               </span>
             )}
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
               {title}
-            </h1>
+            </h2>
           </div>
 
-          <div className="prose prose-lg max-w-none">
-            {content}
-          </div>
+          <div className="prose prose-lg max-w-none">{content}</div>
 
           {/* Help Section */}
           <div className="mt-12 pt-8 border-t border-gray-200">

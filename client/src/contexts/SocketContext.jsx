@@ -46,13 +46,14 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on("connect", () => {
+      console.log("🔌 Socket connected successfully!");
       setSocketConnected(true);
       newSocket.emit("join-chats");
       newSocket.emit("join-notifications");
     });
 
     newSocket.on("disconnect", (reason) => {
-      console.warn("Socket disconnected:", reason);
+      console.warn("⚠️ Socket disconnected:", reason);
       setSocketConnected(false);
 
       if (reason === "io server disconnect") {
@@ -62,7 +63,7 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on("connect_error", (error) => {
-      console.error("Socket connection error:", error.message);
+      console.error("❌ Socket connection error:", error.message);
       setSocketConnected(false);
 
       // Show user-friendly error message only once per session

@@ -17,9 +17,9 @@ const Video = () => {
           ></video>
         </div>
         <div className="content">
-          <h1 className="md:text-5xl text-3xl font-semibold max-w-4xl pb-5">
+          <h2 className="md:text-5xl text-3xl font-semibold max-w-4xl pb-5">
             A Smarter Way to Sell Your Car in Pakistan
-          </h1>
+          </h2>
           <p className="py-4 text-gray-600">
             In Pakistan if you are looking to put your car for sale or reach out
             to the buyers that are actively in the market for a used car, we

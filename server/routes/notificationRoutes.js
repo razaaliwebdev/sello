@@ -1,13 +1,14 @@
-import express from 'express';
+import express from "express";
 import {
-    createNotification,
-    getAllNotifications,
-    getUserNotifications,
-    markAsRead,
-    markAllAsRead,
-    deleteNotification
-} from '../controllers/notificationController.js';
-import { auth, authorize } from '../middlewares/authMiddleware.js';
+  createNotification,
+  getAllNotifications,
+  getUserNotifications,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
+} from "../controllers/notificationController.js";
+import { auth, authorize } from "../middlewares/authMiddleware.js";
+import { hasPermission } from "../middlewares/permissionMiddleware.js";
 
 const router = express.Router();
 
@@ -19,12 +20,15 @@ router.get("/me", getUserNotifications);
 router.put("/:notificationId/read", markAsRead);
 router.put("/read-all", markAllAsRead);
 
-// Admin routes
-router.use(authorize('admin'));
+// Admin routes with permission checks
+router.use(authorize("admin"));
 
-router.post("/", createNotification);
-router.get("/", getAllNotifications);
-router.delete("/:notificationId", deleteNotification);
+router.post("/", hasPermission("createNotifications"), createNotification);
+router.get("/", hasPermission("viewNotifications"), getAllNotifications);
+router.delete(
+  "/:notificationId",
+  hasPermission("deleteNotifications"),
+  deleteNotification
+);
 
 export default router;
-

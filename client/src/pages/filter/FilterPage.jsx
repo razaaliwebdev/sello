@@ -101,9 +101,9 @@ const FilterPage = () => {
 
   return (
     <div className="px-3 sm:px-4 md:px-6 lg:px-8 py-12">
-      <h1 className="md:text-3xl text-xl font-semibold text-center text-primary-500 mb-8">
+      <h2 className="md:text-3xl text-xl font-semibold text-center text-primary-500 mb-8">
         Filter
-      </h1>
+      </h2>
       <div className="border-[1px] border-gray-700 rounded-lg md:px-5 md:py-6 px-7 py-8 my-4">
         <div className="w-full">
           <FilterForm onFilter={handleFilter} />

@@ -18,9 +18,9 @@ const WhyChooseUs = () => {
 
         {/* Right Content Section */}
         <div className="w-full lg:w-[60%]">
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-semibold mb-5">
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold mb-5">
             {whyUs.title}
-          </h1>
+          </h2>
           <p className="text-base md:text-lg text-gray-700 mb-6">
             {whyUs.description}
           </p>
@@ -49,7 +49,7 @@ const WhyChooseUs = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12">
         {whyUs.ourAchievementsData.map((item, index) => (
           <div key={index} className="text-center">
-            <h1 className="text-2xl md:text-3xl font-bold">{item.value}M</h1>
+            <h2 className="text-2xl md:text-3xl font-bold">{item.value}M</h2>
             <p className="text-base md:text-lg text-gray-700">{item.caption}</p>
           </div>
         ))}

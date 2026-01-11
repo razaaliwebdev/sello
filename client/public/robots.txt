@@ -9,5 +9,5 @@ Disallow: /reset-password
 Disallow: /verify-otp
 
 # Sitemap
-Sitemap: https://yourdomain.com/sitemap.xml
+Sitemap: http://localhost:5173/sitemap.xml
 

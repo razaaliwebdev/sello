@@ -585,6 +585,9 @@ export const register = async (req, res) => {
  */
 export const login = async (req, res) => {
   try {
+    console.log("=== LOGIN DEBUG ===");
+    console.log("Request body:", req.body);
+
     const { email, password, rememberMe } = req.body;
 
     // Validation
@@ -597,7 +600,17 @@ export const login = async (req, res) => {
 
     // Find user
     const user = await User.findOne({ email: email.toLowerCase() });
+    console.log("User found:", user ? "Yes" : "No");
+    if (user) {
+      console.log("User details:", {
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      });
+    }
+
     if (!user) {
+      console.log("FAIL: User not found");
       return res.status(401).json({
         success: false,
         message: "Invalid email or password.",
@@ -621,8 +634,15 @@ export const login = async (req, res) => {
     }
 
     // Verify password
+    console.log("Comparing passwords...");
+    console.log("Input password:", password);
+    console.log("Stored password hash:", user.password);
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
+    console.log("Password valid:", isPasswordValid);
+
     if (!isPasswordValid) {
+      console.log("FAIL: Password comparison failed");
       return res.status(401).json({
         success: false,
         message: "Invalid email or password.",

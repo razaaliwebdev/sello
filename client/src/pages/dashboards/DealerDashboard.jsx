@@ -226,7 +226,7 @@ const DealerDashboard = () => {
       <div className="w-64 bg-white shadow-lg flex flex-col">
         {/* Logo */}
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-primary-500">SELLO</h1>
+          <h2 className="text-2xl font-bold text-primary-500">SELLO</h2>
           <p className="text-xs text-gray-500 mt-1">Dealer Dashboard</p>
         </div>
 

@@ -75,13 +75,13 @@ const SellerDashboard = () => {
         navigate("/", { replace: true });
         return;
       }
-      
+
       // Redirect admins to admin dashboard
       if (user.role === "admin") {
         navigate("/admin/dashboard", { replace: true });
         return;
       }
-      
+
       // Redirect verified dealers to dealer dashboard
       if (user.role === "dealer" && user.dealerInfo?.verified) {
         navigate("/dealer/dashboard", { replace: true });
@@ -102,11 +102,23 @@ const SellerDashboard = () => {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
           <div className="mb-4">
-            <svg className="mx-auto h-16 w-16 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            <svg
+              className="mx-auto h-16 w-16 text-red-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Access Denied
+          </h2>
           <p className="text-gray-600 mb-6">
             Please login with an appropriate account.
           </p>
@@ -122,7 +134,11 @@ const SellerDashboard = () => {
   }
 
   // Redirect individual users, admins, and verified dealers (handled in useEffect above)
-  if (user.role === "individual" || user.role === "admin" || (user.role === "dealer" && user.dealerInfo?.verified)) {
+  if (
+    user.role === "individual" ||
+    user.role === "admin" ||
+    (user.role === "dealer" && user.dealerInfo?.verified)
+  ) {
     return null; // Will redirect in useEffect
   }
 
@@ -132,14 +148,26 @@ const SellerDashboard = () => {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
           <div className="mb-4">
-            <svg className="mx-auto h-16 w-16 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            <svg
+              className="mx-auto h-16 w-16 text-red-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Access Denied
+          </h2>
           <p className="text-gray-600 mb-6">
-            {user?.role === "admin" 
-              ? "Admins should use the admin dashboard." 
+            {user?.role === "admin"
+              ? "Admins should use the admin dashboard."
               : user?.dealerInfo?.verified
               ? "Verified dealers should use the dealer dashboard."
               : "This dashboard is only accessible to unverified dealers."}
@@ -171,7 +199,7 @@ const SellerDashboard = () => {
       {/* Sidebar */}
       <div className="w-64 bg-white shadow-lg flex flex-col">
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-primary-500">SELLO</h1>
+          <h2 className="text-2xl font-bold text-primary-500">SELLO</h2>
           <p className="text-xs text-gray-500 mt-1">
             {user?.role === "dealer" ? "Dealer Dashboard" : "My Dashboard"}
           </p>
@@ -248,7 +276,7 @@ const SellerDashboard = () => {
         <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-gray-800">
-              {user.role === 'dealer' ? 'Dealer Dashboard' : 'My Dashboard'}
+              {user.role === "dealer" ? "Dealer Dashboard" : "My Dashboard"}
             </h2>
             <div className="flex items-center gap-4">
               <button className="relative p-2 hover:bg-gray-100 rounded-lg">
@@ -262,15 +290,21 @@ const SellerDashboard = () => {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold overflow-hidden">
                   {user.avatar ? (
-                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                    <img
+                      src={user.avatar}
+                      alt={user.name}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     user.name.charAt(0).toUpperCase()
                   )}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {user.name}
+                  </p>
                   <p className="text-xs text-gray-500 capitalize">
-                    {user.role === 'dealer' ? 'Dealer' : 'Individual User'}
+                    {user.role === "dealer" ? "Dealer" : "Individual User"}
                   </p>
                 </div>
               </div>
@@ -285,18 +319,26 @@ const SellerDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Total Ads Posted</span>
+                    <span className="text-sm text-gray-600">
+                      Total Ads Posted
+                    </span>
                     <FiTrendingUp className="text-primary-500" size={20} />
                   </div>
-                  <div className="text-3xl font-bold text-gray-900">{stats.totalAds}</div>
+                  <div className="text-3xl font-bold text-gray-900">
+                    {stats.totalAds}
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Active Listings</span>
+                    <span className="text-sm text-gray-600">
+                      Active Listings
+                    </span>
                     <FiCheckCircle className="text-green-500" size={20} />
                   </div>
-                  <div className="text-3xl font-bold text-gray-900">{stats.activeListings}</div>
+                  <div className="text-3xl font-bold text-gray-900">
+                    {stats.activeListings}
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
@@ -304,12 +346,16 @@ const SellerDashboard = () => {
                     <span className="text-sm text-gray-600">Sold Cars</span>
                     <FiCheckCircle className="text-primary-500" size={20} />
                   </div>
-                  <div className="text-3xl font-bold text-gray-900">{stats.soldCars}</div>
+                  <div className="text-3xl font-bold text-gray-900">
+                    {stats.soldCars}
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Total Earnings</span>
+                    <span className="text-sm text-gray-600">
+                      Total Earnings
+                    </span>
                     <FiDollarSign className="text-green-500" size={20} />
                   </div>
                   <div className="text-3xl font-bold text-gray-900">
@@ -321,7 +367,9 @@ const SellerDashboard = () => {
               {/* Recent Listings */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Recent Listings</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Recent Listings
+                  </h3>
                   <button
                     onClick={() => navigate("/my-listings")}
                     className="text-primary-500 hover:text-primary-500 font-medium"
@@ -382,7 +430,9 @@ const SellerDashboard = () => {
           {activeTab === "listings" && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-gray-900">My Listings</h3>
+                <h3 className="text-xl font-semibold text-gray-900">
+                  My Listings
+                </h3>
                 <button
                   onClick={() => navigate("/create-post")}
                   className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:opacity-90 flex items-center gap-2"
@@ -443,4 +493,3 @@ const SellerDashboard = () => {
 };
 
 export default SellerDashboard;
-

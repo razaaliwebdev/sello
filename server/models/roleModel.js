@@ -5,7 +5,6 @@ const roleSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     },
     displayName: {
@@ -166,7 +165,8 @@ const roleSchema = new mongoose.Schema(
 );
 
 // Indexes
-// Note: name already has an index from unique: true
+// Compound index to ensure unique name among active roles
+roleSchema.index({ name: 1, isActive: 1 }, { unique: true });
 roleSchema.index({ isActive: 1 });
 roleSchema.index({ isPreset: 1 });
 

@@ -7,6 +7,7 @@ import Logger from "./utils/logger.js";
 import mongoose from "mongoose";
 import validateEnvVars from "./utils/envValidator.js";
 import { SERVER_CONFIG, LOG_CONFIG } from "./config/index.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 // Validate environment variables before starting server
 validateEnvVars({ strict: process.env.NODE_ENV === "production" });
@@ -170,6 +171,8 @@ const startServer = () => {
     } catch (socketError) {
       Logger.error("Socket.io initialization error", socketError);
     }
+
+    // Notification routes are already registered in app.js
 
     server.listen(PORT, () => {
       Logger.info(`🚀 Server running on PORT:${PORT}`);

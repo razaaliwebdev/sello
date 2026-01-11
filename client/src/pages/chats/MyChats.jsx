@@ -18,8 +18,7 @@ import {
 } from "../../redux/services/api";
 import Spinner from "../../components/Spinner";
 import toast from "react-hot-toast";
-import { io } from "socket.io-client";
-import { SOCKET_BASE_URL } from "../../redux/config";
+import { useSocket } from "../../contexts/SocketContext";
 import { buildCarUrl } from "../../utils/urlBuilders";
 
 const MyChats = () => {
@@ -28,8 +27,7 @@ const MyChats = () => {
   const [message, setMessage] = useState("");
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editMessageText, setEditMessageText] = useState("");
-  const [socket, setSocket] = useState(null);
-  const [socketConnected, setSocketConnected] = useState(false);
+  const { socket, socketConnected } = useSocket();
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
@@ -49,79 +47,74 @@ const MyChats = () => {
     error: messagesError,
   } = useGetCarChatMessagesQuery(selectedChat, {
     skip: !selectedChat,
-    // Use longer polling interval - socket handles real-time
-    pollingInterval: 10000,
+    // Fetch messages even if relying on socket events for real-time updates
+    // This ensures we have initial message history and fallback for socket issues
+    pollingInterval: 3000, // Reduced to 3 seconds for better responsiveness
   });
   const [sendMessage] = useSendCarChatMessageMutation();
   const [editMessage] = useEditCarChatMessageMutation();
   const [deleteMessage] = useDeleteCarChatMessageMutation();
 
-  const token = localStorage.getItem("token");
-
-  // Initialize Socket.io
+  // Initialize Socket connection and event handlers
   useEffect(() => {
-    if (!token || !selectedChat) {
-      setSocketConnected(false);
-      return;
+    if (!socket || !selectedChat) return;
+
+    // Join the chat room when socket is connected and chat is selected
+    if (socketConnected) {
+      console.log("Joining chat room:", selectedChat);
+      socket.emit("join-chat", selectedChat);
     }
 
-    let newSocket;
-    try {
-      newSocket = io(SOCKET_BASE_URL, {
-        auth: { token },
-        query: { token },
-        transports: ["websocket", "polling"],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-      });
-
-      newSocket.on("connect", () => {
-        setSocketConnected(true);
-        if (selectedChat) {
-          newSocket.emit("join-chat", selectedChat);
-        }
-      });
-
-      newSocket.on("disconnect", () => {
-        setSocketConnected(false);
-      });
-
-      newSocket.on("new-message", (data) => {
-        if (data.chatId === selectedChat) {
-          // Refetch messages - RTK Query will deduplicate based on message IDs
-          // Use a small delay to ensure server has processed the message
-          setTimeout(() => {
-            refetchMessages();
-          }, 100);
-          refetchChats(); // Update chat list for unread counts and last message
-        }
-      });
-
-      newSocket.on("message-updated", (data) => {
-        if (data.chatId === selectedChat) {
+    // Handle new messages
+    const handleNewMessage = (data) => {
+      console.log("New message received in MyChats:", data);
+      if (data.chatId === selectedChat) {
+        // Refetch messages with a small delay to ensure server has processed message
+        setTimeout(() => {
           refetchMessages();
-        }
-      });
-
-      newSocket.on("message-deleted", (data) => {
-        if (data.chatId === selectedChat) {
-          refetchMessages();
-        }
-      });
-
-      setSocket(newSocket);
-    } catch {
-      // Error initializing socket
-      setSocketConnected(false);
-    }
-
-    return () => {
-      if (newSocket) {
-        newSocket.close();
+        }, 100);
+        refetchChats(); // Update chat list for unread counts and last message
       }
     };
-  }, [token, selectedChat]);
+
+    // Handle message updates
+    const handleMessageUpdated = (data) => {
+      console.log("Message updated in MyChats:", data);
+      if (data.chatId === selectedChat) {
+        refetchMessages();
+      }
+    };
+
+    // Handle message deletion
+    const handleMessageDeleted = (data) => {
+      console.log("Message deleted in MyChats:", data);
+      if (data.chatId === selectedChat) {
+        refetchMessages();
+      }
+    };
+
+    // Handle socket reconnection
+    const handleConnect = () => {
+      console.log("Socket reconnected, re-joining chat:", selectedChat);
+      if (selectedChat) {
+        socket.emit("join-chat", selectedChat);
+      }
+    };
+
+    // Set up event listeners
+    socket.on("new-message", handleNewMessage);
+    socket.on("message-updated", handleMessageUpdated);
+    socket.on("message-deleted", handleMessageDeleted);
+    socket.on("connect", handleConnect);
+
+    return () => {
+      // Clean up event listeners
+      socket.off("new-message", handleNewMessage);
+      socket.off("message-updated", handleMessageUpdated);
+      socket.off("message-deleted", handleMessageDeleted);
+      socket.off("connect", handleConnect);
+    };
+  }, [socket, socketConnected, selectedChat, refetchMessages, refetchChats]);
 
   // Track user scroll to determine if we should auto-scroll
   useEffect(() => {
@@ -201,18 +194,23 @@ const MyChats = () => {
     const messageText = message.trim();
     setMessage("");
 
+    console.log("Sending message:", {
+      selectedChat,
+      messageText,
+      socketConnected,
+    });
+
     try {
       if (socket && socket.connected) {
-        // Send via socket - message will arrive via 'new-message' event
+        console.log("Sending via socket");
         socket.emit("send-message", {
           chatId: selectedChat,
           message: messageText,
           messageType: "text",
         });
-        // Don't refetch - socket will handle the update
-        refetchChats(); // Only update chat list for last message
+        refetchChats();
       } else {
-        // Fallback to REST API if socket not connected
+        console.log("Sending via REST API (socket not connected)");
         await sendMessage({
           chatId: selectedChat,
           message: messageText,
@@ -221,6 +219,7 @@ const MyChats = () => {
         refetchChats();
       }
     } catch (error) {
+      console.error("Send message error:", error);
       toast.error(error?.data?.message || "Failed to send message");
     }
   };
@@ -272,7 +271,7 @@ const MyChats = () => {
             <FiArrowLeft />
             <span>Back</span>
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">My Chats</h1>
+          <h2 className="text-3xl font-bold text-gray-900">My Chats</h2>
           <p className="text-gray-600 mt-1">
             Manage your buyer and seller conversations
           </p>

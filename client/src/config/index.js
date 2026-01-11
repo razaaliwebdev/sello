@@ -14,7 +14,7 @@ export const API_CONFIG = {
   BASE_URL:
     import.meta.env.VITE_API_URL ||
     (import.meta.env.DEV
-      ? "http://localhost:4000/api"
+      ? "http://localhost:4003/api"
       : (() => {
           console.error("VITE_API_URL is required in production!");
           return ""; // Fail fast in production if not configured
@@ -24,7 +24,7 @@ export const API_CONFIG = {
   SOCKET_URL: (() => {
     const baseUrl =
       import.meta.env.VITE_API_URL ||
-      (import.meta.env.DEV ? "http://localhost:4000/api" : "");
+      (import.meta.env.DEV ? "http://localhost:4003/api" : "");
     return baseUrl.endsWith("/api") ? baseUrl.replace("/api", "") : baseUrl;
   })(),
 

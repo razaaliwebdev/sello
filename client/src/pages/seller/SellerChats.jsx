@@ -53,15 +53,14 @@ const SellerChats = () => {
   const [editMessage] = useEditCarChatMessageMutation();
   const [deleteMessage] = useDeleteCarChatMessageMutation();
 
-  // Initialize messages from data only once when chat changes
+  // Initialize messages from data and handle real-time updates
   useEffect(() => {
     if (messagesData && Array.isArray(messagesData)) {
       const filteredMessages = messagesData.filter((msg) => !msg.isDeleted);
       setMessages(filteredMessages);
       shouldAutoScrollRef.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChat]); // Only re-run when chat changes, not when data updates (prevents infinite loop)
+  }, [messagesData]); // Re-run when messagesData changes (for proper sync)
 
   // Store RTK Query functions in refs to prevent infinite re-renders
   const refetchMessagesRef = useRef(refetchMessages);
@@ -77,32 +76,25 @@ const SellerChats = () => {
     if (!socket) return;
 
     const handleNewMessage = (data) => {
+      console.log("New message received in SellerChats:", data);
       if (data.chatId === selectedChat) {
-        // Add the new message directly instead of refetching
-        setMessages((prev) => [...prev, data.message]);
-        if (shouldAutoScrollRef.current && messagesContainerRef.current) {
-          setTimeout(() => {
-            const container = messagesContainerRef.current;
-            if (container) {
-              container.scrollTop = container.scrollHeight;
-            }
-          }, 100);
-        }
+        // Refetch messages to ensure we have the latest data
+        refetchMessagesRef.current();
+        refetchChatsRef.current(); // Update chat list for unread counts
       }
-      refetchChatsRef.current();
     };
 
     const handleMessageDeleted = (data) => {
+      console.log("Message deleted in SellerChats:", data);
       if (data.chatId === selectedChat) {
-        setMessages((prev) => prev.filter((msg) => msg._id !== data.messageId));
+        refetchMessagesRef.current();
       }
     };
 
     const handleMessageUpdated = (data) => {
+      console.log("Message updated in SellerChats:", data);
       if (data.chatId === selectedChat) {
-        setMessages((prev) =>
-          prev.map((msg) => (msg._id === data.message._id ? data.message : msg))
-        );
+        refetchMessagesRef.current();
       }
     };
 
@@ -115,7 +107,7 @@ const SellerChats = () => {
       socket.off("message-deleted", handleMessageDeleted);
       socket.off("message-updated", handleMessageUpdated);
     };
-  }, [socket, selectedChat]); // Removed refetch functions to prevent infinite loop
+  }, [socket, selectedChat]);
 
   // Join chat room when selected chat changes
   useEffect(() => {
@@ -237,9 +229,9 @@ const SellerChats = () => {
               <FiArrowLeft size={24} />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h2 className="text-3xl font-bold text-gray-900">
                 Buyer Messages
-              </h1>
+              </h2>
               <p className="text-gray-600 mt-1">
                 Manage conversations with buyers
               </p>

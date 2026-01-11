@@ -136,11 +136,11 @@ const FilteredResults = () => {
       <div className="container mx-auto px-4 md:px-6 py-6">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
             {searchTerm
               ? `Search Results for "${searchTerm}"`
               : "Search Results"}
-          </h1>
+          </h2>
           {searchTerm && (
             <p className="text-gray-600">
               Found {totalResults} {totalResults === 1 ? "car" : "cars"}{" "}

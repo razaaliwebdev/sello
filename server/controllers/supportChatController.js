@@ -224,7 +224,7 @@ export const getUserSupportChats = async (req, res) => {
 
     const chats = await Chat.find({
       chatType: "support",
-      participants: req.user._id,
+      participants: { $in: [req.user._id] },
     })
       .populate("participants", "name email avatar role")
       .sort({ lastMessageAt: -1 });
@@ -285,7 +285,7 @@ export const getSupportChatMessages = async (req, res) => {
     // Check if user is participant (allow admins to access any chat)
     if (
       req.user.role !== "admin" &&
-      !chat.participants.includes(req.user._id)
+      !chat.participants.some((p) => p.toString() === req.user._id.toString())
     ) {
       return res.status(403).json({
         success: false,
@@ -369,7 +369,9 @@ export const sendSupportMessage = async (req, res) => {
     }
 
     // Check if user is participant
-    if (!chat.participants.includes(req.user._id)) {
+    if (
+      !chat.participants.some((p) => p.toString() === req.user._id.toString())
+    ) {
       return res.status(403).json({
         success: false,
         message: "You don't have access to this chat.",
@@ -1028,7 +1030,9 @@ export const editSupportMessage = async (req, res) => {
       });
     }
 
-    if (!chat.participants.includes(req.user._id)) {
+    if (
+      !chat.participants.some((p) => p.toString() === req.user._id.toString())
+    ) {
       return res.status(403).json({
         success: false,
         message: "You don't have access to this chat.",
@@ -1130,7 +1134,9 @@ export const deleteSupportMessage = async (req, res) => {
       });
     }
 
-    if (!chat.participants.includes(req.user._id)) {
+    if (
+      !chat.participants.some((p) => p.toString() === req.user._id.toString())
+    ) {
       return res.status(403).json({
         success: false,
         message: "You don't have access to this chat.",

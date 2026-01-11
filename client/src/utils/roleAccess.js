@@ -148,37 +148,69 @@ export const canAccessMenu = (user, path) => {
     "/admin/listings":
       userPermissions.viewListings ||
       userPermissions.approveListings ||
-      userPermissions.editListings,
+      userPermissions.editListings ||
+      userPermissions.createListings ||
+      userPermissions.deleteListings,
     "/admin/dealers":
       userPermissions.viewDealers ||
       userPermissions.approveDealers ||
-      userPermissions.editDealers,
+      userPermissions.editDealers ||
+      userPermissions.createDealers ||
+      userPermissions.deleteDealers,
     "/admin/categories":
       userPermissions.viewCategories || userPermissions.manageCategories,
     "/admin/blogs":
       userPermissions.viewBlogs ||
       userPermissions.createBlogs ||
       userPermissions.editBlogs ||
+      userPermissions.deleteBlogs ||
       userPermissions.manageBlogs ||
       userPermissions.publishBlogs ||
-      userPermissions.deleteBlogs,
+      userPermissions.moderateComments,
+    "/admin/blog-categories":
+      userPermissions.viewCategories || userPermissions.manageCategories,
+    "/admin/blogs/create":
+      userPermissions.createBlogs || userPermissions.manageBlogs,
+    "/admin/blogs/:id/edit":
+      userPermissions.editBlogs || userPermissions.manageBlogs,
+    "/admin/blog-comments": userPermissions.moderateComments,
+    "/admin/blog-media":
+      userPermissions.manageBlogs || userPermissions.createBlogs,
     "/admin/testimonials":
       userPermissions.viewTestimonials || userPermissions.manageTestimonials,
-    "/admin/analytics": userPermissions.viewAnalytics,
+    "/admin/analytics":
+      userPermissions.viewAnalytics ||
+      userPermissions.viewFinancialReports ||
+      userPermissions.createReports ||
+      userPermissions.exportReports ||
+      userPermissions.deleteReports,
     "/admin/chat":
-      userPermissions.accessChatbot || userPermissions.createChatLogs,
+      userPermissions.accessChatbot ||
+      userPermissions.viewChatbotLogs ||
+      userPermissions.createChatLogs ||
+      userPermissions.editChatLogs ||
+      userPermissions.deleteChatLogs,
     "/admin/chatbot":
-      userPermissions.accessChatbot || userPermissions.viewChatbotLogs,
+      userPermissions.accessChatbot ||
+      userPermissions.viewChatbotLogs ||
+      userPermissions.createChatLogs ||
+      userPermissions.editChatLogs ||
+      userPermissions.deleteChatLogs,
     "/admin/support-chat":
       userPermissions.manageSupportTickets ||
-      userPermissions.respondToInquiries,
+      userPermissions.respondToInquiries ||
+      userPermissions.createSupportTickets ||
+      userPermissions.deleteSupportTickets,
     "/admin/support-chatbot":
       userPermissions.manageSupportTickets ||
-      userPermissions.respondToInquiries,
+      userPermissions.respondToInquiries ||
+      userPermissions.createSupportTickets ||
+      userPermissions.deleteSupportTickets,
     "/admin/customer-requests":
       userPermissions.viewInquiries ||
       userPermissions.createInquiries ||
-      userPermissions.respondToInquiries,
+      userPermissions.respondToInquiries ||
+      userPermissions.deleteInquiries,
     "/admin/promotions":
       userPermissions.viewPromotions ||
       userPermissions.createPromotions ||
@@ -196,13 +228,19 @@ export const canAccessMenu = (user, path) => {
       userPermissions.createPushNotifications,
     "/admin/settings":
       userPermissions.viewSettings ||
+      userPermissions.createSettings ||
       userPermissions.editSettings ||
-      userPermissions.managePlatformSettings,
+      userPermissions.deleteSettings ||
+      userPermissions.managePlatformSettings ||
+      userPermissions.manageLogo ||
+      userPermissions.manageLanguage ||
+      userPermissions.manageCurrency ||
+      userPermissions.manageCommission,
   };
 
   // Check if user has permission for this path
   if (PERMISSION_MENU_ACCESS[path]) {
-    return true;
+    return PERMISSION_MENU_ACCESS[path];
   }
 
   // Fallback to role-based access for backward compatibility

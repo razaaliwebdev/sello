@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSocket } from "../../contexts/SocketContext";
-import { FaBell, FaCheck, FaCheckDouble } from "react-icons/fa";
+import {
+  FaBell,
+  FaCheck,
+  FaCheckDouble,
+  FaTimes,
+  FaTag,
+  FaCalendar,
+  FaPercent,
+  FaDollarSign,
+} from "react-icons/fa";
 import { MdNotifications, MdNotificationsActive } from "react-icons/md";
 import {
   useGetUserNotificationsQuery,
@@ -10,8 +19,45 @@ import {
 } from "../../redux/services/api";
 import toast from "react-hot-toast";
 
+// Request notification permission and show browser notification
+const requestNotificationPermission = async () => {
+  if ("Notification" in window) {
+    if (Notification.permission === "granted") {
+      return true;
+    }
+    if (Notification.permission !== "denied") {
+      const permission = await Notification.requestPermission();
+      return permission === "granted";
+    }
+  }
+  return false;
+};
+
+// Show browser notification
+const showBrowserNotification = (title, message, icon = "🔔") => {
+  if ("Notification" in window && Notification.permission === "granted") {
+    const notification = new Notification(title, {
+      body: message,
+      icon: icon,
+      tag: "sello-notification",
+      badge: "1",
+      renotify: true,
+      requireInteraction: false,
+      silent: false,
+    });
+
+    // Auto-focus the window when notification is clicked
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+  }
+};
+
 const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [selectedPromotion, setSelectedPromotion] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
@@ -45,12 +91,12 @@ const NotificationBell = () => {
     if (!socket) return;
 
     const handleNewNotification = (data) => {
-      // WhatsApp-style bubble toast (bottom-right, richer preview)
-      toast.success(data.message || data.title || "New notification", {
-        icon: "🔔",
-        duration: 7000,
-        position: "bottom-right",
-      });
+      console.log("🔔 New notification received in NotificationBell:", data);
+      // Show browser notification for real notifications only
+      showBrowserNotification(
+        data.title || data.message || "New notification",
+        data.message || data.title
+      );
 
       // Refetch notifications so the bell counter updates instantly
       refetchRef.current();
@@ -61,7 +107,7 @@ const NotificationBell = () => {
     return () => {
       socket.off("new-notification", handleNewNotification);
     };
-  }, [socket]); // Removed refetch to prevent infinite loop
+  }, [socket]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -77,6 +123,11 @@ const NotificationBell = () => {
     };
   }, []);
 
+  // Request notification permission on component mount
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
+
   const handleNotificationClick = async (notification) => {
     if (!notification.isRead) {
       try {
@@ -89,10 +140,42 @@ const NotificationBell = () => {
 
     setIsOpen(false);
 
-    // Navigate to action URL if available
-    // For support chats, actionUrl will be:
-    // - Users:  `/support?chatId=...`  → handled by SupportRouteRedirect (opens widget)
-    // - Admins: `/admin/support-chatbot/:chatId` → handled by admin routes
+    // Check if this is an old promotion notification by URL pattern
+    if (
+      notification.actionUrl &&
+      notification.actionUrl.includes("/promotions/")
+    ) {
+      // Create mock promotion data for old notifications
+      const mockPromotionData = {
+        promotionId: notification.actionUrl.split("/").pop(),
+        title: notification.title.replace("🎉 New Promotion: ", ""),
+        description: "Click to view promotion details",
+        promoCode: "PROMO123", // Default code
+        discountType: "percentage",
+        discountValue: 10,
+        minPurchaseAmount: 0,
+        maxDiscountAmount: null,
+        usageLimit: 100,
+        usedCount: 0,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+        status: "active",
+        targetAudience: "all",
+      };
+
+      setSelectedPromotion(mockPromotionData);
+      setShowPromotionModal(true);
+      return;
+    }
+
+    // Show promotion modal for promotion notifications
+    if (notification.type === "promotion" && notification.metadata) {
+      setSelectedPromotion(notification.metadata);
+      setShowPromotionModal(true);
+      return;
+    }
+
+    // Navigate to action URL if available for other notifications
     if (notification.actionUrl) {
       navigate(notification.actionUrl);
     }
@@ -117,6 +200,9 @@ const NotificationBell = () => {
       case "error":
         return "❌";
       case "info":
+        return "ℹ️";
+      case "promotion":
+        return "🎉";
       default:
         return "ℹ️";
     }
@@ -254,6 +340,187 @@ const NotificationBell = () => {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Promotion Details Modal */}
+      {showPromotionModal && selectedPromotion && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            {/* Background overlay */}
+            <div
+              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              onClick={() => setShowPromotionModal(false)}
+            />
+
+            {/* Modal panel */}
+            <div className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg sm:max-w-lg sm:p-8">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <FaTag className="text-orange-500" />
+                  Promotion Details
+                </h3>
+                <button
+                  onClick={() => setShowPromotionModal(false)}
+                  className="text-gray-400 hover:text-gray-500 transition-colors"
+                >
+                  <FaTimes className="text-xl" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="space-y-4">
+                {/* Title */}
+                <div>
+                  <h4 className="text-2xl font-bold text-gray-900">
+                    {selectedPromotion.title}
+                  </h4>
+                  {selectedPromotion.description && (
+                    <p className="mt-2 text-gray-600">
+                      {selectedPromotion.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* Promo Code Box */}
+                <div className="bg-orange-50 border-2 border-dashed border-orange-300 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600 font-medium uppercase tracking-wide mb-2">
+                    Your Promo Code
+                  </p>
+                  <p className="text-3xl font-bold text-orange-600 font-mono tracking-wider">
+                    {selectedPromotion.promoCode}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-2">Click to copy →</p>
+                </div>
+
+                {/* Discount Details */}
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 flex items-center gap-2">
+                      {selectedPromotion.discountType === "percentage" ? (
+                        <FaPercent />
+                      ) : (
+                        <FaDollarSign />
+                      )}
+                      Your Discount:
+                    </span>
+                    <span className="text-lg font-bold text-green-600">
+                      {selectedPromotion.discountType === "percentage"
+                        ? `${selectedPromotion.discountValue}% OFF`
+                        : `$${selectedPromotion.discountValue} OFF`}
+                    </span>
+                  </div>
+
+                  {selectedPromotion.minPurchaseAmount > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Min Purchase:</span>
+                      <span className="text-lg font-bold text-purple-600">
+                        ${selectedPromotion.minPurchaseAmount}
+                      </span>
+                    </div>
+                  )}
+
+                  {selectedPromotion.maxDiscountAmount && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Max Discount:</span>
+                      <span className="text-lg font-bold text-blue-600">
+                        ${selectedPromotion.maxDiscountAmount}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Validity */}
+                <div className="flex items-center justify-between bg-red-50 rounded-lg p-4">
+                  <span className="text-gray-600 flex items-center gap-2">
+                    <FaCalendar className="text-red-500" />
+                    Valid Until:
+                  </span>
+                  <span className="text-lg font-bold text-red-600">
+                    {new Date(selectedPromotion.endDate).toLocaleDateString(
+                      "en-US",
+                      {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      }
+                    )}
+                  </span>
+                </div>
+
+                {/* Usage Info */}
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>Usage Limit:</span>
+                    <span className="font-medium">
+                      {selectedPromotion.usageLimit
+                        ? `${selectedPromotion.usageLimit} uses`
+                        : "Unlimited"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-gray-600 mt-1">
+                    <span>Used:</span>
+                    <span className="font-medium">
+                      {selectedPromotion.usedCount || 0} times
+                    </span>
+                  </div>
+                  {selectedPromotion.usageLimit && (
+                    <div className="mt-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-orange-500 h-2 rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(
+                              ((selectedPromotion.usedCount || 0) /
+                                selectedPromotion.usageLimit) *
+                                100,
+                              100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {Math.round(
+                          ((selectedPromotion.usedCount || 0) /
+                            selectedPromotion.usageLimit) *
+                            100
+                        )}
+                        % used
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Terms */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-xs text-yellow-800">
+                    <strong>Important:</strong> This offer cannot be combined
+                    with other offers. Terms and conditions apply.
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => setShowPromotionModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedPromotion.promoCode);
+                    toast.success("Promo code copied to clipboard!");
+                  }}
+                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium"
+                >
+                  Copy Code
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ import {
   deletePromotion,
   getPromotionStats,
   validatePromoCode,
+  applyPromoCode,
   getActivePromotions,
 } from "../controllers/promotionsController.js";
 import { auth, authorize } from "../middlewares/authMiddleware.js";
@@ -16,6 +17,7 @@ const router = express.Router();
 
 // Public routes
 router.post("/validate", validatePromoCode);
+router.post("/apply", applyPromoCode);
 router.get("/active", getActivePromotions);
 
 // All other routes require admin access with permission checks

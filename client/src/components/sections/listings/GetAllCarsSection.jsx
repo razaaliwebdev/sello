@@ -13,6 +13,7 @@ import {
   useUnsaveCarMutation,
 } from "../../../redux/services/api";
 import LazyImage from "../../common/LazyImage";
+import { formatPrice } from "../../../utils/format";
 import toast from "react-hot-toast";
 
 // Skeleton Loader Component
@@ -377,14 +378,8 @@ const GetAllCarsSection = () => {
                     ? car.year
                     : "N/A";
 
-                // Format price properly - handle invalid prices (max 100M AED)
-                const carPrice =
-                  car?.price &&
-                  typeof car.price === "number" &&
-                  car.price > 0 &&
-                  car.price < 100000000
-                    ? car.price.toLocaleString()
-                    : "N/A";
+                // Format price properly using utility function
+                const carPrice = formatPrice(car?.price);
 
                 return (
                   <div

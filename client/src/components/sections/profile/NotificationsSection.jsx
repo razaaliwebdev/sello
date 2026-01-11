@@ -50,11 +50,27 @@ const NotificationsSection = () => {
     if (!globalSocket) return;
 
     const handleNewNotification = (data) => {
-      toast.success(data.message || data.title || "New notification", {
-        icon: "🔔",
-        duration: 7000,
-        position: "bottom-right",
-      });
+      console.log(
+        "🔔 New notification received in NotificationsSection:",
+        data
+      );
+      // Show browser notification for real notifications only
+      if ("Notification" in window && Notification.permission === "granted") {
+        const notification = new Notification(
+          data.title || "New notification",
+          {
+            body: data.message || "You have a new notification",
+            icon: "🔔",
+            tag: "sello-notification",
+          }
+        );
+
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+      }
+
       refetchRef.current();
     };
 
@@ -63,7 +79,7 @@ const NotificationsSection = () => {
     return () => {
       globalSocket.off("new-notification", handleNewNotification);
     };
-  }, [globalSocket]); // Removed refetch to prevent infinite loop
+  }, [globalSocket]);
 
   const handleNotificationClick = async (notification) => {
     if (!notification.isRead) {

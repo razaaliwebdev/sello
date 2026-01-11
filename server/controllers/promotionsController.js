@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import User from "../models/userModel.js";
 import Notification from "../models/notificationModel.js";
 import sendEmail from "../utils/sendEmail.js";
+import Logger from "../utils/logger.js";
+import { EMAIL_CONFIG, SITE_CONFIG } from "../config/index.js";
 
 /**
  * Create Promotion
@@ -603,7 +605,104 @@ export const getActivePromotions = async (req, res) => {
       data: promotions,
     });
   } catch (error) {
-    console.error("Get Active Promotions Error:", error.message);
+    Logger.error("Get Active Promotions Error", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Apply Promo Code (Used during checkout/purchase)
+ */
+export const applyPromoCode = async (req, res) => {
+  try {
+    const { promoCode, amount, userId } = req.body;
+
+    if (!promoCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Promo code is required.",
+      });
+    }
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid amount is required.",
+      });
+    }
+
+    const promotion = await Promotion.findOne({
+      promoCode: promoCode.toUpperCase().trim(),
+    });
+
+    if (!promotion) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid promo code.",
+      });
+    }
+
+    // Check if promotion can be used
+    if (!promotion.canBeUsed()) {
+      return res.status(400).json({
+        success: false,
+        message: "This promo code is no longer valid.",
+      });
+    }
+
+    // Check minimum purchase amount
+    if (
+      promotion.minPurchaseAmount > 0 &&
+      amount < promotion.minPurchaseAmount
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Minimum purchase amount of $${promotion.minPurchaseAmount} required.`,
+      });
+    }
+
+    // Calculate discount
+    const discount = promotion.calculateDiscount(amount);
+
+    // Update usage count
+    await Promotion.findByIdAndUpdate(promotion._id, {
+      $inc: { usedCount: 1 },
+    });
+
+    Logger.info(`[Promotion] Promo code applied successfully`, {
+      promotionId: promotion._id,
+      promoCode: promotion.promoCode,
+      userId: userId || "anonymous",
+      originalAmount: amount,
+      discountAmount: discount,
+      finalAmount: amount - discount,
+      newUsedCount: promotion.usedCount + 1,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Promo code applied successfully!",
+      data: {
+        promotion: {
+          _id: promotion._id,
+          title: promotion.title,
+          promoCode: promotion.promoCode,
+          discountType: promotion.discountType,
+          discountValue: promotion.discountValue,
+          maxDiscountAmount: promotion.maxDiscountAmount,
+        },
+        originalAmount: amount,
+        discount,
+        finalAmount: amount - discount,
+        savingsPercentage: ((discount / amount) * 100).toFixed(1),
+      },
+    });
+  } catch (error) {
+    Logger.error("Apply Promo Code Error", error);
     return res.status(500).json({
       success: false,
       message: "Server error. Please try again later.",
@@ -622,20 +721,15 @@ const sendPromotionNotifications = async (promotion, adminUser) => {
     // Get target users based on promotion targetAudience
     let targetUsers = [];
     const siteName = process.env.SITE_NAME || "Sello";
-    const clientUrl =
-      process.env.NODE_ENV === "production"
-        ? process.env.PRODUCTION_URL ||
-          process.env.CLIENT_URL?.split(",")[0]?.trim()
-        : process.env.CLIENT_URL?.split(",")[0]?.trim() ||
-          "http://localhost:5173";
+    const clientUrl = EMAIL_CONFIG.getFrontendUrl();
 
     // Determine user query based on targetAudience
-    let userQuery = { role: { $ne: "admin" } }; // Default: all non-admin users
+    let userQuery = {}; // Default: all users (including admins for testing)
 
     if (promotion.targetAudience === "buyers") {
       userQuery = { role: "individual" };
     } else if (promotion.targetAudience === "sellers") {
-      userQuery = { role: "individual" };
+      userQuery = { role: "seller" };
     } else if (promotion.targetAudience === "dealers") {
       userQuery = { role: "dealer" };
     }
@@ -646,9 +740,57 @@ const sendPromotionNotifications = async (promotion, adminUser) => {
       .limit(1000); // Limit to prevent overwhelming
 
     // Found users to notify for target audience
+    Logger.info(
+      `[Promotion] User query executed for target audience: ${promotion.targetAudience}`,
+      {
+        promotionId: promotion._id,
+        targetAudience: promotion.targetAudience,
+        userQuery: JSON.stringify(userQuery),
+        totalUsersFound: targetUsers.length,
+      }
+    );
 
     if (targetUsers.length === 0) {
-      // No users found for target audience
+      Logger.warn(
+        `[Promotion] No users found to notify for target audience: ${promotion.targetAudience}`,
+        {
+          promotionId: promotion._id,
+          targetAudience: promotion.targetAudience,
+          userQuery: JSON.stringify(userQuery),
+          suggestion:
+            "Check if users exist in database with the specified role",
+        }
+      );
+
+      // Still create a system notification for admins that promotion was created but no users were notified
+      try {
+        await Notification.create({
+          title: `📢 Promotion Created - No Users Notified`,
+          message: `Promotion "${promotion.title}" was created but no users found for target audience: ${promotion.targetAudience}`,
+          type: "warning",
+          recipient: adminUser._id,
+          targetRole: null,
+          actionUrl: "/admin/promotions", // Point to admin promotions page
+          actionText: "View Promotion",
+          createdBy: adminUser._id,
+        });
+        Logger.info(
+          `[Promotion] Created admin notification about no users found`,
+          {
+            promotionId: promotion._id,
+            targetAudience: promotion.targetAudience,
+          }
+        );
+      } catch (notificationError) {
+        Logger.error(
+          `[Promotion] Failed to create admin notification`,
+          notificationError,
+          {
+            promotionId: promotion._id,
+          }
+        );
+      }
+
       return;
     }
 
@@ -669,146 +811,210 @@ const sendPromotionNotifications = async (promotion, adminUser) => {
           type: "promotion",
           recipient: user._id,
           targetRole: null,
-          actionUrl: `/promotions/${promotion._id}`,
-          actionText: "View Promotion",
+          actionUrl: "/", // Point to home page instead of non-existent promotions page
+          actionText: "View Details",
           createdBy: adminUser._id,
           expiresAt: promotion.endDate,
+          metadata: {
+            promotionId: promotion._id,
+            title: promotion.title,
+            description: promotion.description,
+            promoCode: promotion.promoCode,
+            discountType: promotion.discountType,
+            discountValue: promotion.discountValue,
+            minPurchaseAmount: promotion.minPurchaseAmount,
+            maxDiscountAmount: promotion.maxDiscountAmount,
+            usageLimit: promotion.usageLimit,
+            usedCount: promotion.usedCount,
+            startDate: promotion.startDate,
+            endDate: promotion.endDate,
+            status: promotion.status,
+            targetAudience: promotion.targetAudience,
+          },
         });
         return notification;
       } catch (error) {
-        console.error(
-          `[Promotion] Failed to create notification for user ${user._id}:`,
-          error.message
+        Logger.error(
+          `[Promotion] Failed to create notification for user ${user._id}`,
+          error,
+          {
+            userId: user._id,
+            promotionId: promotion._id,
+            userEmail: user.email,
+          }
         );
-        return null;
+        return { success: true, email: user.email };
       }
     });
 
-    const notifications = await Promise.all(notificationPromises);
-    const successfulNotifications = notifications.filter((n) => n !== null);
-    // Created in-app notifications
+    const successfulNotifications = await Promise.all(notificationPromises);
+    const filteredNotifications = successfulNotifications.filter(
+      (n) => n !== null
+    );
+
+    Logger.info(
+      `[Promotion] Created ${filteredNotifications.length} in-app notifications`,
+      {
+        promotionId: promotion._id,
+        totalUsers: targetUsers.length,
+        successfulNotifications: filteredNotifications.length,
+      }
+    );
 
     // Send email notifications if enabled
-    if (process.env.ENABLE_EMAIL_NOTIFICATIONS === "true") {
-      // Sending email notifications to users
+    let successfulEmails = [];
+    if (EMAIL_CONFIG.ENABLED) {
+      if (targetUsers.length > 0) {
+        Logger.info(
+          `[Promotion] Sending email notifications to ${targetUsers.length} users`,
+          {
+            promotionId: promotion._id,
+            totalEmails: targetUsers.length,
+            targetAudience: promotion.targetAudience,
+          }
+        );
 
-      const emailPromises = targetUsers.map(async (user) => {
-        if (!user.email || !user.verified) {
-          return null; // Skip unverified users or users without email
-        }
+        const emailPromises = targetUsers.map(async (user) => {
+          if (!user.email || !user.verified) {
+            return null; // Skip unverified users or users without email
+          }
 
-        try {
-          const subject = `🎉 Exclusive Promotion: ${promotion.title}`;
-          const discountText =
-            promotion.discountType === "percentage"
-              ? `${promotion.discountValue}% OFF`
-              : `$${promotion.discountValue} OFF`;
+          try {
+            const subject = `🎉 Exclusive Promotion: ${promotion.title}`;
+            const discountText =
+              promotion.discountType === "percentage"
+                ? `${promotion.discountValue}% OFF`
+                : `$${promotion.discountValue} OFF`;
 
-          const html = `
-            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827; max-width: 600px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                <h1 style="margin: 0; font-size: 28px; font-weight: bold;">🎉 Limited Time Offer!</h1>
-                <p style="margin: 10px 0 0; font-size: 18px; opacity: 0.9;">Exclusive Promotion Just for You</p>
-              </div>
-              
-              <div style="background: white; padding: 40px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <h2 style="color: #111827; margin: 0 0 10px; font-size: 24px;">${
-                  promotion.title
-                }</h2>
+            const html = `
+              <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+                <h2 style="color:#111827;margin-bottom:8px;">🎉 Exclusive Promotion Available!</h2>
+                <p style="margin:0 0 12px 0;">Hi ${user.name || "there"},</p>
+                <p style="margin:0 0 16px 0;">We're excited to offer you an exclusive promotion with great savings!</p>
                 
-                <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
-                  <p style="margin: 0; font-size: 16px; color: #374151;">
+                <div style="background:#F3F4F6;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #F97316;">
+                    <h3 style="color:#111827;margin:0 0 12px 0;font-size:18px;">${
+                      promotion.title
+                    }</h3>
                     ${
-                      promotion.description ||
-                      "Get amazing discounts on your next purchase!"
-                    }
-                  </p>
-                </div>
-                
-                <div style="text-align: center; margin: 30px 0;">
-                  <div style="display: inline-block; background: #fef3c7; padding: 20px; border-radius: 8px; border: 2px dashed #f59e0b;">
-                    <p style="margin: 0 0 10px; font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px;">Your Promo Code</p>
-                    <p style="margin: 0; font-size: 32px; font-weight: bold; color: #d97706; letter-spacing: 2px;">${
-                      promotion.promoCode
-                    }</p>
-                  </div>
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; margin: 30px 0; padding: 20px; background: #f9fafb; border-radius: 8px;">
-                  <div>
-                    <p style="margin: 0; font-size: 14px; color: #6b7280;">Discount</p>
-                    <p style="margin: 5px 0 0; font-size: 20px; font-weight: bold; color: #059669;">${discountText}</p>
-                  </div>
-                  ${
-                    promotion.minPurchaseAmount > 0
-                      ? `
-                  <div>
-                    <p style="margin: 0; font-size: 14px; color: #6b7280;">Min Purchase</p>
-                    <p style="margin: 5px 0 0; font-size: 20px; font-weight: bold; color: #7c3aed;">$${promotion.minPurchaseAmount}</p>
-                  </div>
-                  `
-                      : ""
-                  }
-                  <div>
-                    <p style="margin: 0; font-size: 14px; color: #6b7280;">Valid Until</p>
-                    <p style="margin: 5px 0 0; font-size: 16px; font-weight: bold; color: #dc2626;">${new Date(
-                      promotion.endDate
-                    ).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${clientUrl}" style="display: inline-block; padding: 15px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 25px; font-weight: bold; font-size: 16px;">
-                    Shop Now & Save
-                  </a>
-                </div>
-                
-                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                  <p style="margin: 0; font-size: 12px; color: #6b7280; text-align: center;">
-                    This offer expires on ${new Date(
-                      promotion.endDate
-                    ).toLocaleDateString()}. 
-                    ${
-                      promotion.usageLimit
-                        ? `Limited to ${promotion.usageLimit} uses.`
+                      promotion.description
+                        ? `<p style="margin:0 0 16px 0;color:#6B7280;">${promotion.description}</p>`
                         : ""
                     }
-                  </p>
-                  <p style="margin: 10px 0 0; font-size: 12px; color: #6b7280; text-align: center;">
-                    You received this because you have an account on ${siteName}.
-                  </p>
+                    <div style="background:#FFFFFF;padding:16px;border-radius:6px;border:2px dashed #F97316;text-align:center;margin:16px 0;">
+                        <p style="margin:0 0 8px 0;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;">Your Promo Code</p>
+                        <p style="margin:0;font-size:24px;font-weight:700;color:#F97316;font-family:'Courier New',monospace;letter-spacing:2px;">${
+                          promotion.promoCode
+                        }</p>
+                    </div>
+                    <p style="margin:0 0 8px 0;"><strong>Your Discount:</strong> <span style="color:#059669;font-weight:700;">${discountText}</span></p>
+                    ${
+                      promotion.minPurchaseAmount > 0
+                        ? `<p style="margin:0 0 8px 0;"><strong>Min Purchase:</strong> <span style="color:#7C3AED;font-weight:700;">$${promotion.minPurchaseAmount}</span></p>`
+                        : ""
+                    }
+                    <p style="margin:0 0 8px 0;"><strong>Valid Until:</strong> <span style="color:#DC2626;font-weight:700;">${new Date(
+                      promotion.endDate
+                    ).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}</span></p>
                 </div>
-              </div>
+                
+                <p style="margin:0 0 16px 0;">
+                    <a href="${clientUrl}" style="display:inline-block;padding:10px 18px;background:#F97316;color:#ffffff;text-decoration:none;border-radius:999px;font-size:14px;">
+                        Shop Now & Save Big 🚀
+                    </a>
+                </p>
+                
+                <p style="margin:0 0 16px 0;">This promotion will expire on ${new Date(
+                  promotion.endDate
+                ).toLocaleDateString()}.</p>
+                ${
+                  promotion.usageLimit
+                    ? `<p style="margin:0 0 16px 0;">Limited to ${promotion.usageLimit} uses.</p>`
+                    : ""
+                }
+                <p style="margin:0 0 16px 0;">Cannot be combined with other offers. Terms and conditions apply.</p>
+                
+                <p style="font-size:12px;color:#6B7280;margin-top:24px;">
+                    If you didn't expect this promotion, you can safely ignore this email.
+                </p>
             </div>
           `;
 
-          await sendEmail(user.email, subject, html);
-          // Email sent successfully
-          return { success: true, email: user.email };
-        } catch (emailError) {
-          console.error(
-            `[Promotion] Failed to send email to ${user.email}:`,
-            emailError.message
-          );
-          return {
-            success: false,
-            email: user.email,
-            error: emailError.message,
-          };
-        }
-      });
+            await sendEmail(user.email, subject, html);
+            Logger.info(
+              `[Promotion] Email sent successfully to ${user.email}`,
+              {
+                userId: user._id,
+                userEmail: user.email,
+                promotionId: promotion._id,
+              }
+            );
+            return { success: true, email: user.email };
+          } catch (emailError) {
+            Logger.error(
+              `[Promotion] Failed to send email to ${user.email}`,
+              emailError,
+              {
+                userId: user._id,
+                userEmail: user.email,
+                promotionId: promotion._id,
+              }
+            );
+            return {
+              success: false,
+              email: user.email,
+              error: emailError.message,
+            };
+          }
+        });
 
-      const emailResults = await Promise.all(emailPromises);
-      const successfulEmails = emailResults.filter((r) => r && r.success);
-      // Sent emails successfully
+        const emailResults = await Promise.all(emailPromises);
+        successfulEmails = emailResults.filter((r) => r && r.success);
+        Logger.info(
+          `[Promotion] Sent ${successfulEmails.length} emails successfully`,
+          {
+            promotionId: promotion._id,
+            totalEmails: targetUsers.length,
+            successfulEmails: successfulEmails.length,
+          }
+        );
+      }
     } else {
-      // Email notifications disabled
+      Logger.info(`[Promotion] Email notifications disabled`, {
+        promotionId: promotion._id,
+        emailNotificationsEnabled: false,
+      });
     }
 
     // Emit real-time notifications via socket.io
     try {
-      const io = global.io || require("../server").io;
-      if (io && successfulNotifications.length > 0) {
+      let successfulEmailsCount = 0;
+      if (successfulEmails && successfulEmails.length > 0) {
+        successfulEmailsCount = successfulEmails.length;
+      }
+
+      // Get socket.io instance - handle both ES modules and CommonJS
+      let io;
+      try {
+        // Try to get from global first (for ES modules)
+        io = global.io;
+      } catch (err) {
+        // Fallback for CommonJS
+        try {
+          const serverModule = await import("../server.js");
+          io = serverModule.default?.io || serverModule.io;
+        } catch (importErr) {
+          Logger.warn(`[Promotion] Could not import socket.io`, {
+            error: importErr.message,
+          });
+        }
+      }
+
+      if (io && filteredNotifications.length > 0) {
         const socketData = {
           _id: promotion._id,
           title: `🎉 New Promotion: ${promotion.title}`,
@@ -818,9 +1024,25 @@ const sendPromotionNotifications = async (promotion, adminUser) => {
               : "$" + promotion.discountValue
           } off!`,
           type: "promotion",
-          actionUrl: `/promotions/${promotion._id}`,
-          actionText: "View Promotion",
+          actionUrl: "/", // Point to home page instead of non-existent promotions page
+          actionText: "View Details",
           createdAt: new Date(),
+          metadata: {
+            promotionId: promotion._id,
+            title: promotion.title,
+            description: promotion.description,
+            promoCode: promotion.promoCode,
+            discountType: promotion.discountType,
+            discountValue: promotion.discountValue,
+            minPurchaseAmount: promotion.minPurchaseAmount,
+            maxDiscountAmount: promotion.maxDiscountAmount,
+            usageLimit: promotion.usageLimit,
+            usedCount: promotion.usedCount,
+            startDate: promotion.startDate,
+            endDate: promotion.endDate,
+            status: promotion.status,
+            targetAudience: promotion.targetAudience,
+          },
         };
 
         // Send to all users based on target audience
@@ -828,21 +1050,36 @@ const sendPromotionNotifications = async (promotion, adminUser) => {
           io.emit("new-notification", socketData);
         } else if (promotion.targetAudience === "dealers") {
           io.to("role:dealer").emit("new-notification", socketData);
-        } else if (
-          promotion.targetAudience === "buyers" ||
-          promotion.targetAudience === "sellers"
-        ) {
+        } else if (promotion.targetAudience === "buyers") {
           io.to("role:individual").emit("new-notification", socketData);
+        } else if (promotion.targetAudience === "sellers") {
+          io.to("role:seller").emit("new-notification", socketData);
         }
 
-        // Real-time notifications sent via socket.io
+        Logger.info(`[Promotion] Real-time notifications sent via socket.io`, {
+          promotionId: promotion._id,
+          targetAudience: promotion.targetAudience,
+          notificationCount: filteredNotifications.length,
+        });
       }
     } catch (socketError) {
-      console.error(`[Promotion] Socket.io error:`, socketError.message);
+      Logger.error(`[Promotion] Socket.io error`, socketError, {
+        promotionId: promotion._id,
+        targetAudience: promotion.targetAudience,
+      });
     }
 
-    // Notification process completed
+    Logger.info(`[Promotion] Notification process completed`, {
+      promotionId: promotion._id,
+      targetAudience: promotion.targetAudience,
+      totalUsers: targetUsers.length,
+      successfulNotifications: filteredNotifications.length,
+      successfulEmails: successfulEmails?.length || 0,
+    });
   } catch (error) {
-    console.error("[Promotion] Error in sendPromotionNotifications:", error);
+    Logger.error(`[Promotion] Error in sendPromotionNotifications`, error, {
+      promotionId: promotion._id,
+      targetAudience: promotion.targetAudience,
+    });
   }
 };

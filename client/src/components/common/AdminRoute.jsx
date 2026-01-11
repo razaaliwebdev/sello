@@ -105,7 +105,7 @@ const AdminRoute = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Check if user is admin
+  // Check if user is admin or team member with admin role
   if (currentUser?.role !== "admin") {
     return <Navigate to="/" replace />;
   }
