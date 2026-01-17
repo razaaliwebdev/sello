@@ -94,7 +94,6 @@ const HelpSearch = lazy(() => import("./pages/help/HelpSearch.jsx"));
 const SubscriptionSuccess = lazy(() =>
   import("./pages/payments/SubscriptionSuccess.jsx")
 );
-const BoostSuccess = lazy(() => import("./pages/payments/BoostSuccess.jsx"));
 
 // Admin Pages
 // Lazy load admin pages for code splitting
@@ -555,14 +554,6 @@ const App = () => {
           element={
             <Suspense fallback={<RouteLoader />}>
               <SubscriptionSuccess />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/boost/success"
-          element={
-            <Suspense fallback={<RouteLoader />}>
-              <BoostSuccess />
             </Suspense>
           }
         />

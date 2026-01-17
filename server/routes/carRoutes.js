@@ -11,11 +11,6 @@ import {
   relistCar,
   getCarCountsByMake,
 } from "../controllers/carController.js";
-import {
-  boostPost,
-  adminPromotePost,
-  getBoostOptions,
-} from "../controllers/boostController.js";
 import { upload } from "../middlewares/multer.js";
 import { auth } from "../middlewares/authMiddleware.js";
 import {
@@ -93,10 +88,5 @@ router.delete(
   deleteCar
 ); // Delete Car
 router.get("/my/listings", auth, getMyCars); // GetMyCars (My Listing)
-
-// Boost/Promote Routes
-router.post("/:carId/boost", auth, boostPost); // User boost post
-router.get("/boost/options", auth, getBoostOptions); // Get boost options
-router.post("/:carId/admin-promote", auth, adminPromotePost); // Admin promote post
 
 export default router;

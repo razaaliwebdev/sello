@@ -3,7 +3,6 @@ import express from "express";
 import authRouter from "../routes/authRoutes.js";
 import userRouter from "../routes/userRoutes.js";
 import carRouter from "../routes/carRoutes.js";
-import boostRouter from "../routes/boostRoutes.js";
 import adminRouter from "../routes/adminRoutes.js";
 import categoryRouter from "../routes/categoryRoutes.js";
 import blogRouter from "../routes/blogRoutes.js";
@@ -52,7 +51,6 @@ class RouteRegistry {
 
     // Core business logic
     this.register("/api/cars", carRouter, "Car Listings");
-    this.register("/api/boost", boostRouter, "Car Boosting");
     this.register("/api/categories", categoryRouter, "Categories");
 
     // Content management

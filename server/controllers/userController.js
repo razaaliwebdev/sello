@@ -38,7 +38,6 @@ export const getUserProfile = async (req, res) => {
         isEmailVerified: user.isEmailVerified,
         dealerInfo: user.dealerInfo || null,
         subscription: user.subscription || null,
-        boostCredits: user.boostCredits || 0,
         sellerRating: user.sellerRating || 0,
         reviewCount: user.reviewCount || 0,
         carsPosted: user.carsPosted,
@@ -160,7 +159,6 @@ export const updateProfile = async (req, res) => {
         isVerified: user.isVerified,
         sellerRating: user.sellerRating,
         reviewCount: user.reviewCount,
-        boostCredits: user.boostCredits,
         subscription: user.subscription,
       },
     });
@@ -396,35 +394,6 @@ export const updateDealerProfile = async (req, res) => {
     });
   } catch (error) {
     Logger.error("Update Dealer Profile Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error. Please try again later.",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
-  }
-};
-
-/**
- * Get User Boost Credits
- */
-export const getBoostCredits = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id).select(
-      "boostCredits subscription totalSpent paymentHistory"
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Boost credits retrieved successfully.",
-      data: {
-        boostCredits: user.boostCredits,
-        subscription: user.subscription,
-        totalSpent: user.totalSpent,
-        recentPayments: user.paymentHistory.slice(-5).reverse(), // Last 5 payments
-      },
-    });
-  } catch (error) {
-    console.error("Get Boost Credits Error:", error.message);
     return res.status(500).json({
       success: false,
       message: "Server error. Please try again later.",

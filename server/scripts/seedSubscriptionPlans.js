@@ -22,13 +22,11 @@ const examplePlans = [
     features: [
       "Unlimited listings",
       "Priority support",
-      "20 boost credits / month",
       "Featured listing badge",
       "Analytics dashboard",
       "Advanced search filters",
     ],
     maxListings: -1,
-    boostCredits: 20,
     isActive: false, // keep OFF by default until you go live
     isDefault: false,
     order: 2,
@@ -46,13 +44,11 @@ const examplePlans = [
     features: [
       "Unlimited listings",
       "24/7 priority support",
-      "50 boost credits / month",
       "Dealer verification badge",
       "Analytics dashboard",
       "Team / multi-user support",
     ],
     maxListings: -1,
-    boostCredits: 50,
     isActive: false, // keep OFF by default
     isDefault: false,
     order: 3,
@@ -100,5 +96,3 @@ const seedPlans = async () => {
 };
 
 seedPlans();
-
-

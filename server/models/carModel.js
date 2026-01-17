@@ -238,31 +238,6 @@ const carSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Boost Post Fields
-    isBoosted: {
-      type: Boolean,
-      default: false,
-    },
-    boostExpiry: {
-      type: Date,
-      default: null,
-    },
-    boostPriority: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100,
-    },
-    boostHistory: [
-      {
-        boostedAt: { type: Date, default: Date.now },
-        boostedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        boostType: { type: String, enum: ["user", "admin"], default: "user" },
-        duration: { type: Number }, // in days
-        expiredAt: { type: Date },
-      },
-    ],
-
     // Admin Management Fields
     isApproved: {
       type: Boolean,
@@ -309,15 +284,12 @@ const carSchema = new mongoose.Schema(
 
 // Indexes for better query performance
 carSchema.index({ geoLocation: "2dsphere" });
-carSchema.index({ isBoosted: 1, boostExpiry: 1 });
 carSchema.index({
   isApproved: 1,
-  isBoosted: 1,
-  boostPriority: -1,
   createdAt: -1,
 });
 carSchema.index({ postedBy: 1 });
-carSchema.index({ featured: 1, isBoosted: 1 });
+carSchema.index({ featured: 1 });
 carSchema.index({ isSold: 1, isApproved: 1 });
 carSchema.index({ status: 1, autoDeleteDate: 1, isAutoDeleted: 1 });
 carSchema.index({ vehicleType: 1, status: 1, isApproved: 1 });
@@ -355,8 +327,6 @@ carSchema.index({
   status: 1,
   isApproved: 1,
   featured: -1,
-  isBoosted: -1,
-  boostPriority: -1,
   createdAt: -1,
 }); // Homepage listing query
 

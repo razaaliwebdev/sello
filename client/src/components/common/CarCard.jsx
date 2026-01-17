@@ -2,7 +2,6 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { buildCarUrl } from "../../utils/urlBuilders";
 import { BsBookmark, BsBookmarkFill } from "react-icons/bs";
-import { FiZap } from "react-icons/fi";
 import LazyImage from "./LazyImage";
 import { images } from "../../assets/assets";
 import {
@@ -77,15 +76,6 @@ const CarCard = ({ car }) => {
             width="100%"
             height="100%"
           />
-          {/* Boost Badge */}
-          {car?.isBoosted &&
-            new Date(car?.boostExpiry) > new Date() &&
-            !car?.isSold && (
-              <div className="absolute top-4 left-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white px-3 py-1 rounded-full text-xs font-semibold z-10 flex items-center gap-1 shadow-lg">
-                <FiZap size={12} />
-                BOOSTED
-              </div>
-            )}
           {/* Sold Badge */}
           {car?.isSold && (
             <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold z-10">
@@ -104,7 +94,7 @@ const CarCard = ({ car }) => {
             !car?.isSold && (
               <div
                 className={`absolute ${
-                  car?.featured || car?.isBoosted ? "top-14" : "top-4"
+                  car?.featured ? "top-14" : "top-4"
                 } left-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-1 rounded-full text-xs font-semibold z-10 flex items-center gap-1 shadow-lg`}
               >
                 <svg

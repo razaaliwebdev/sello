@@ -1048,19 +1048,6 @@ export const getAllCars = async (req, res) => {
     const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
 
-    // Clean up expired boosts
-    try {
-      await Car.updateMany(
-        { isBoosted: true, boostExpiry: { $lt: new Date() } },
-        { $set: { isBoosted: false, boostPriority: 0 } }
-      );
-    } catch (dbError) {
-      // If updateMany fails, log but continue (non-critical operation)
-      Logger.warn("Failed to clean up expired boosts", {
-        error: dbError.message,
-      });
-    }
-
     const now = new Date();
 
     // Build query - show approved cars (or cars without isApproved field, which defaults to true)
@@ -1166,10 +1153,10 @@ export const getAllCars = async (req, res) => {
     }
 
     // Fetch cars with pagination - optimized with .lean() and .select()
-    // Sort: Featured first, then boosted (by priority), then by creation date
+    // Sort: Featured first, then by creation date
     const cars = await Car.find(query)
       .select(
-        "title make model year price images city location status isBoosted boostExpiry boostPriority featured condition fuelType transmission mileage postedBy createdAt views geoLocation vehicleType features carDoors horsepower engineCapacity"
+        "title make model year price images city location status featured condition fuelType transmission mileage postedBy createdAt views geoLocation vehicleType features carDoors horsepower engineCapacity"
       )
       .skip(skip)
       .limit(limit)
@@ -1180,8 +1167,6 @@ export const getAllCars = async (req, res) => {
       })
       .sort({
         featured: -1,
-        isBoosted: -1,
-        boostPriority: -1,
         // push sold listings lower in the results, similar to OLX / PakWheels
         status: 1, // "active" < "sold" < "expired" < "deleted"
         createdAt: -1,
@@ -1620,20 +1605,16 @@ export const getFilteredCars = async (req, res) => {
     // Build sort object - prioritize boosted posts
     let sort = {};
     if (sortField) {
-      // If custom sort, still prioritize boosted posts
+      // Custom sort with featured priority
       sort = {
         featured: -1,
-        isBoosted: -1,
-        boostPriority: -1,
         [sortField]: sortOrder,
         createdAt: -1,
       };
     } else {
-      // Default sort: Featured > Boosted > Date
+      // Default sort: Featured > Date
       sort = {
         featured: -1,
-        isBoosted: -1,
-        boostPriority: -1,
         createdAt: -1,
       };
     }
@@ -1643,7 +1624,7 @@ export const getFilteredCars = async (req, res) => {
     try {
       // Build query with select to only get needed fields (performance optimization)
       const selectFields =
-        "title make model year condition price images city location mileage fuelType transmission bodyType regionalSpec postedBy createdAt views isBoosted featured features carDoors horsepower engineCapacity";
+        "title make model year condition price images city location mileage fuelType transmission bodyType regionalSpec postedBy createdAt views featured features carDoors horsepower engineCapacity";
 
       [cars, total] = await Promise.all([
         Car.find(finalFilter)

@@ -130,7 +130,6 @@ import accountDeletionRoutes from "./routes/accountDeletionRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import promotionRoutes from "./routes/promotionsRoutes.js";
 import verificationRoutes from "./routes/verificationRoutes.js";
-import boostRoutes from "./routes/boostRoutes.js";
 import mapsRoutes from "./routes/mapsRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 
@@ -158,7 +157,6 @@ app.use("/api/account-deletion", accountDeletionRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/promotions", promotionRoutes);
 app.use("/api/verification", verificationRoutes);
-app.use("/api/boost", boostRoutes);
 app.use("/api/maps", mapsRoutes);
 app.use("/api/upload", uploadRoutes);
 

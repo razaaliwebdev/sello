@@ -199,140 +199,6 @@ export const createSubscriptionCheckout = async (req, res) => {
 };
 
 /**
- * Create Checkout Session for Boost
- * Supports Stripe payment gateway
- */
-export const createBoostCheckout = async (req, res) => {
-  try {
-    const { carId, duration = 7 } = req.body;
-
-    if (!carId) {
-      return res.status(400).json({
-        success: false,
-        message: "Car ID is required",
-      });
-    }
-
-    // Validate duration
-    const validDurations = [3, 7, 14, 30];
-    if (!validDurations.includes(duration)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid duration. Valid options are: ${validDurations.join(
-          ", "
-        )} days`,
-      });
-    }
-
-    // Verify car exists and user owns it
-    const Car = (await import("../models/carModel.js")).default;
-    const car = await Car.findById(carId);
-
-    if (!car) {
-      return res.status(404).json({
-        success: false,
-        message: "Car listing not found",
-      });
-    }
-
-    if (
-      car.postedBy.toString() !== req.user._id.toString() &&
-      req.user.role !== "admin"
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "You can only boost your own listings",
-      });
-    }
-
-    // Check if car is sold or deleted
-    if (car.status === "sold" || car.status === "deleted") {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot boost a ${car.status} listing`,
-      });
-    }
-
-    // Validate CLIENT_URL
-    const clientUrl =
-      process.env.NODE_ENV === "production"
-        ? process.env.PRODUCTION_URL ||
-          process.env.CLIENT_URL?.split(",")[0]?.trim()
-        : process.env.CLIENT_URL?.split(",")[0]?.trim() ||
-          "http://localhost:5173";
-    if (
-      !clientUrl ||
-      clientUrl.includes("meet.google.com") ||
-      clientUrl.includes("google.com/meet")
-    ) {
-      Logger.error("Invalid CLIENT_URL detected:", clientUrl);
-      return res.status(500).json({
-        success: false,
-        message:
-          "Server configuration error: Invalid CLIENT_URL. Please set CLIENT_URL to your frontend URL (e.g., http://localhost:5173)",
-      });
-    }
-
-    const boostCost = 5 * duration; // $5 per day
-
-    // Stripe integration (only gateway used in this project)
-    if (!stripe) {
-      Logger.error(
-        "Stripe boost payment requested but STRIPE_SECRET_KEY is not set."
-      );
-      return res.status(503).json({
-        success: false,
-        message:
-          "Payment service is not configured. Please set STRIPE_SECRET_KEY in environment variables.",
-      });
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `Boost Post for ${duration} days`,
-              description: `Promote your car listing to the top for ${duration} days`,
-            },
-            unit_amount: Math.round(boostCost * 100), // Convert to cents
-          },
-          quantity: 1,
-        },
-      ],
-      mode: "payment",
-      success_url: `${clientUrl}/boost/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${clientUrl}/my-listings`,
-      customer_email: req.user.email,
-      metadata: {
-        userId: req.user._id.toString(),
-        carId: carId,
-        duration: duration.toString(),
-        purpose: "boost",
-      },
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        sessionId: session.id,
-        url: session.url,
-        gateway: "stripe",
-      },
-    });
-  } catch (error) {
-    Logger.error("Create Boost Checkout Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error creating checkout session",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
-  }
-};
-
-/**
  * JazzCash Webhook/Callback Handler
  * NOTE: JazzCash is not used - only Stripe is supported
  * This function is kept for reference but not exported
@@ -393,50 +259,8 @@ const jazzcashWebhook = async (req, res) => {
       return res.json({ received: true, duplicate: true });
     }
 
-    // Handle boost payment
-    if (purpose === "boost" && carId && duration) {
-      const Car = (await import("../models/carModel.js")).default;
-      const car = await Car.findById(carId);
-
-      if (car && car.postedBy.toString() === userId.toString()) {
-        const boostCost = parseInt(duration) * 5;
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + parseInt(duration));
-
-        car.isBoosted = true;
-        car.boostExpiry = expiryDate;
-        car.boostPriority = 50;
-        car.boostHistory.push({
-          boostedAt: new Date(),
-          boostedBy: userId,
-          boostType: "user",
-          duration: parseInt(duration),
-          expiredAt: expiryDate,
-          paymentMethod: "jazzcash",
-          transactionId: callbackData.pp_TxnRefNo,
-        });
-
-        user.paymentHistory.push({
-          amount: boostCost,
-          currency: "PKR",
-          paymentMethod: "jazzcash",
-          transactionId: callbackData.pp_TxnRefNo,
-          purpose: "boost",
-          status: "completed",
-          createdAt: new Date(),
-          metadata: { carId, duration },
-        });
-
-        user.totalSpent = (user.totalSpent || 0) + boostCost;
-        await Promise.all([car.save(), user.save()]);
-
-        Logger.info(
-          `Car ${carId} boosted via JazzCash - Transaction: ${callbackData.pp_TxnRefNo}`
-        );
-      }
-    }
     // Handle subscription payment
-    else if (plan) {
+    if (plan) {
       const selectedPlan = SUBSCRIPTION_PLANS[plan];
       if (selectedPlan) {
         const startDate = new Date();
@@ -450,10 +274,6 @@ const jazzcashWebhook = async (req, res) => {
           isActive: true,
           autoRenew: false, // JazzCash doesn't support auto-renewal
         };
-
-        if (selectedPlan.boostCredits > 0) {
-          user.boostCredits += selectedPlan.boostCredits;
-        }
 
         user.paymentHistory.push({
           amount: selectedPlan.price,
@@ -607,141 +427,7 @@ async function handleCheckoutCompleted(session) {
       return;
     }
 
-    if (purpose === "boost") {
-      // Handle boost payment
-      if (!carId || !duration) {
-        Logger.error("Missing carId or duration in boost payment metadata", {
-          sessionId: session.id,
-          metadata: session.metadata,
-        });
-        return;
-      }
-
-      const Car = (await import("../models/carModel.js")).default;
-      const user = await User.findById(userId);
-
-      if (!user) {
-        Logger.error(`User ${userId} not found for boost payment`, {
-          sessionId: session.id,
-        });
-        return;
-      }
-
-      // Check if payment was already processed (idempotency check)
-      const existingPayment = user.paymentHistory.find(
-        (p) => p.transactionId === session.id && p.status === "completed"
-      );
-
-      if (existingPayment) {
-        Logger.info(
-          `Boost payment for session ${session.id} already processed`
-        );
-        return;
-      }
-
-      const car = await Car.findById(carId);
-
-      if (!car) {
-        Logger.error(`Car ${carId} not found for boost payment`, {
-          sessionId: session.id,
-          userId,
-        });
-        // Still record the payment even if car is deleted
-        user.paymentHistory.push({
-          amount: parseInt(duration) * 5,
-          currency: "USD",
-          paymentMethod: "stripe",
-          transactionId: session.id,
-          purpose: "boost",
-          status: "completed",
-          createdAt: new Date(),
-          metadata: { carId, duration, note: "Car not found" },
-        });
-        await user.save();
-        return;
-      }
-
-      // Verify car ownership
-      if (car.postedBy.toString() !== userId.toString()) {
-        Logger.error(
-          `User ${userId} does not own car ${carId} for boost payment`,
-          { sessionId: session.id }
-        );
-        // Record payment but don't boost
-        user.paymentHistory.push({
-          amount: parseInt(duration) * 5,
-          currency: "USD",
-          paymentMethod: "stripe",
-          transactionId: session.id,
-          purpose: "boost",
-          status: "completed",
-          createdAt: new Date(),
-          metadata: { carId, duration, note: "Ownership verification failed" },
-        });
-        await user.save();
-        return;
-      }
-
-      // Check if car is sold or deleted
-      if (car.status === "sold" || car.status === "deleted") {
-        Logger.warn(`Cannot boost car ${carId} - status is ${car.status}`, {
-          sessionId: session.id,
-        });
-        // Record payment but don't boost
-        user.paymentHistory.push({
-          amount: parseInt(duration) * 5,
-          currency: "USD",
-          paymentMethod: "stripe",
-          transactionId: session.id,
-          purpose: "boost",
-          status: "completed",
-          createdAt: new Date(),
-          metadata: { carId, duration, note: `Car status is ${car.status}` },
-        });
-        await user.save();
-        return;
-      }
-
-      const boostCost = parseInt(duration) * 5;
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + parseInt(duration));
-
-      // Update car boost status
-      car.isBoosted = true;
-      car.boostExpiry = expiryDate;
-      car.boostPriority = 50;
-      car.boostHistory.push({
-        boostedAt: new Date(),
-        boostedBy: userId,
-        boostType: "user",
-        duration: parseInt(duration),
-        expiredAt: expiryDate,
-        paymentMethod: "stripe",
-        transactionId: session.id,
-      });
-
-      // Record payment in user's payment history
-      user.paymentHistory.push({
-        amount: boostCost,
-        currency: "USD",
-        paymentMethod: "stripe",
-        transactionId: session.id,
-        purpose: "boost",
-        status: "completed",
-        createdAt: new Date(),
-        metadata: { carId, duration },
-      });
-
-      // Update user's total spent
-      user.totalSpent = (user.totalSpent || 0) + boostCost;
-
-      // Save both car and user
-      await Promise.all([car.save(), user.save()]);
-
-      Logger.info(
-        `Car ${carId} boosted via Stripe payment - Session: ${session.id}, Duration: ${duration} days, Cost: $${boostCost}`
-      );
-    } else if (plan) {
+    if (purpose === "subscription") {
       // Handle subscription payment
       const user = await User.findById(userId);
       if (user) {
@@ -757,10 +443,6 @@ async function handleCheckoutCompleted(session) {
           isActive: true,
           autoRenew: session.metadata.autoRenew === "true",
         };
-
-        if (selectedPlan.boostCredits > 0) {
-          user.boostCredits += selectedPlan.boostCredits;
-        }
 
         user.paymentHistory.push({
           amount: selectedPlan.price,

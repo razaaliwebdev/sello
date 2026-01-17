@@ -1,7 +1,6 @@
 import express from "express";
 import {
   createSubscriptionCheckout,
-  createBoostCheckout,
   stripeWebhook,
   verifyPaymentSession,
 } from "../controllers/paymentController.js";
@@ -11,9 +10,6 @@ const router = express.Router();
 
 // Create subscription checkout session
 router.post("/subscription/checkout", authenticate, createSubscriptionCheckout);
-
-// Create boost checkout session
-router.post("/boost/checkout", authenticate, createBoostCheckout);
 
 // Verify payment session status
 router.get("/verify/:session_id", authenticate, verifyPaymentSession);

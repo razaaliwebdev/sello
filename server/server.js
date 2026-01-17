@@ -43,18 +43,6 @@ if (process.env.ENABLE_CRON_JOBS === "true") {
   try {
     const cron = await import("node-cron");
 
-    // Run boost expiration every 30 minutes
-    cron.default.schedule("*/30 * * * *", async () => {
-      Logger.info("Running boost expiration job...");
-      try {
-        const { default: runBoostExpiration } = await import(
-          "./scripts/boostExpirationJob.js"
-        );
-      } catch (error) {
-        Logger.error("Boost expiration cron job failed", error);
-      }
-    });
-
     // Run subscription expiration daily at midnight
     cron.default.schedule("0 0 * * *", async () => {
       Logger.info("Running subscription expiration job...");

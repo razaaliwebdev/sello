@@ -117,12 +117,7 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    // Boost & Subscription Fields
-    boostCredits: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
+    // Subscription Fields
     subscription: {
       plan: {
         type: String,
@@ -154,7 +149,7 @@ const userSchema = new mongoose.Schema(
         transactionId: { type: String },
         purpose: {
           type: String,
-          enum: ["boost", "subscription", "credits"],
+          enum: ["subscription", "credits"],
           required: true,
         },
         status: {

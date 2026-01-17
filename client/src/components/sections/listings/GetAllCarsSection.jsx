@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { images } from "../../../assets/assets";
 import { IoIosArrowRoundUp } from "react-icons/io";
 import { BsBookmark, BsBookmarkFill } from "react-icons/bs";
-import { FiZap } from "react-icons/fi";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { buildCarUrl } from "../../../utils/urlBuilders";
 import {
@@ -398,14 +397,6 @@ const GetAllCarsSection = () => {
                             // This will be handled by the LazyImage component
                           }}
                         />
-                        {/* Boost Badge */}
-                        {car?.isBoosted &&
-                          new Date(car?.boostExpiry) > new Date() && (
-                            <div className="absolute top-4 left-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white px-3 py-1 rounded-full text-xs font-semibold z-10 flex items-center gap-1 shadow-lg">
-                              <FiZap size={12} />
-                              BOOSTED
-                            </div>
-                          )}
                         {/* Featured Badge */}
                         {car?.featured && (
                           <div className="absolute top-4 left-4 bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-semibold z-10">
@@ -417,9 +408,7 @@ const GetAllCarsSection = () => {
                           car?.postedBy?.dealerInfo?.verified && (
                             <div
                               className={`absolute ${
-                                car?.featured || car?.isBoosted
-                                  ? "top-14"
-                                  : "top-4"
+                                car?.featured ? "top-14" : "top-4"
                               } left-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-1 rounded-full text-xs font-semibold z-10 flex items-center gap-1 shadow-lg`}
                             >
                               <svg
